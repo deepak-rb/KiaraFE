@@ -2,6 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /* Override Tailwind's default link styles */
+  a {
+    text-decoration: inherit;
+  }
+}
+
+/* Remove underlines from all navigation links */
+nav a,
+nav a *,
+.nav-link,
+.mobile-nav-link {
+  text-decoration: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+nav a:hover,
+nav a:focus,
+nav a:active,
+nav a:visited,
+nav a:link,
+.nav-link:hover,
+.nav-link:focus,
+.nav-link:active,
+.nav-link:visited,
+.nav-link:link,
+.mobile-nav-link:hover,
+.mobile-nav-link:focus,
+.mobile-nav-link:active,
+.mobile-nav-link:visited,
+.mobile-nav-link:link {
+  text-decoration: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -329,28 +368,86 @@ code {
 
 /* Navigation */
 .nav-link {
-  @apply px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200;
+  @apply px-3 py-2 text-sm font-medium transition-colors duration-200;
+  text-decoration: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  -webkit-text-decoration: none !important;
+  -moz-text-decoration: none !important;
+  -ms-text-decoration: none !important;
+}
+
+.nav-link:hover,
+.nav-link:focus,
+.nav-link:active,
+.nav-link:visited,
+.nav-link:link {
+  text-decoration: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  -webkit-text-decoration: none !important;
+  -moz-text-decoration: none !important;
+  -ms-text-decoration: none !important;
 }
 
 .nav-link-active {
-  @apply bg-blue-100 text-blue-700;
+  @apply text-blue-700 font-semibold;
+  text-decoration: none !important;
+  -webkit-text-decoration: none !important;
+  -moz-text-decoration: none !important;
+  -ms-text-decoration: none !important;
 }
 
 .nav-link-inactive {
-  @apply text-gray-600 hover:text-gray-900 hover:bg-gray-100;
+  @apply text-gray-600 hover:text-gray-900;
+  text-decoration: none !important;
+  -webkit-text-decoration: none !important;
+  -moz-text-decoration: none !important;
+  -ms-text-decoration: none !important;
 }
 
 /* Mobile Navigation */
 .mobile-nav-link {
-  @apply block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200;
+  @apply block px-3 py-2 text-base font-medium transition-colors duration-200;
+  text-decoration: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  -webkit-text-decoration: none !important;
+  -moz-text-decoration: none !important;
+  -ms-text-decoration: none !important;
+}
+
+.mobile-nav-link:hover,
+.mobile-nav-link:focus,
+.mobile-nav-link:active,
+.mobile-nav-link:visited,
+.mobile-nav-link:link {
+  text-decoration: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  -webkit-text-decoration: none !important;
+  -moz-text-decoration: none !important;
+  -ms-text-decoration: none !important;
 }
 
 .mobile-nav-link-active {
-  @apply bg-blue-100 text-blue-700;
+  @apply text-blue-700 font-semibold bg-blue-50/50;
+  text-decoration: none !important;
+  -webkit-text-decoration: none !important;
+  -moz-text-decoration: none !important;
+  -ms-text-decoration: none !important;
 }
 
 .mobile-nav-link-inactive {
-  @apply text-gray-600 hover:text-gray-900 hover:bg-gray-100;
+  @apply text-gray-600 hover:text-gray-900 hover:bg-gray-50;
+  text-decoration: none !important;
+  -webkit-text-decoration: none !important;
+  -moz-text-decoration: none !important;
+  -ms-text-decoration: none !important;
 }
 
 /* Mobile menu animations */
@@ -402,7 +499,7 @@ code {
 /* Responsive adjustments for tablet sizes */
 @media (min-width: 640px) and (max-width: 768px) {
   .nav-link {
-    @apply text-xs px-2 py-2;
+    @apply text-xs px-2 py-2 transition-colors duration-200;
   }
 }
 

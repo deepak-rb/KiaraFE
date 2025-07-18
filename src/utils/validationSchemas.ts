@@ -150,37 +150,6 @@ export const doctorProfileSchema = Yup.object({
     })
 });
 
-// Template validation schema
-export const templateSchema = Yup.object({
-  name: Yup.string()
-    .required('Template name is required')
-    .min(2, 'Template name must be at least 2 characters')
-    .max(50, 'Template name cannot exceed 50 characters')
-    .matches(/^[a-zA-Z0-9\s]*$/, 'Template name can only contain letters, numbers, and spaces'),
-  symptoms: Yup.string()
-    .required('Symptoms are required')
-    .min(10, 'Symptoms must be at least 10 characters')
-    .max(1000, 'Symptoms cannot exceed 1000 characters')
-    .test('meaningful', 'Please provide meaningful symptom description', function(value) {
-      if (!value) return false;
-      const words = value.trim().split(/\s+/);
-      return words.length >= 3; // At least 3 words
-    }),
-  prescription: Yup.string()
-    .required('Prescription is required')
-    .min(10, 'Prescription must be at least 10 characters')
-    .max(1000, 'Prescription cannot exceed 1000 characters')
-    .test('meaningful', 'Please provide meaningful prescription details', function(value) {
-      if (!value) return false;
-      const words = value.trim().split(/\s+/);
-      return words.length >= 3; // At least 3 words
-    }),
-  followUpDays: Yup.number()
-    .min(0, 'Follow-up days cannot be negative')
-    .max(365, 'Follow-up days cannot exceed 365')
-    .integer('Follow-up days must be a whole number')
-});
-
 // Password change validation schema
 export const passwordChangeSchema = Yup.object({
   currentPassword: Yup.string()

@@ -18,19 +18,10 @@ interface Patient {
   phone: string;
 }
 
-interface Template {
-  _id: string;
-  name: string;
-  symptoms: string;
-  prescription: string;
-  followUpDays: number;
-}
-
 const NewPrescription: React.FC = () => {
   const navigate = useNavigate();
   const [error, setError] = useState('');
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [templates, setTemplates] = useState<Template[]>([]);
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -48,7 +39,6 @@ const NewPrescription: React.FC = () => {
 
   useEffect(() => {
     fetchPatients();
-    fetchTemplates();
   }, []);
 
   useEffect(() => {
@@ -136,32 +126,6 @@ const NewPrescription: React.FC = () => {
       setPatients(response.data.patients);
     } catch (err: any) {
       setError('No Patients Found');
-    }
-  };
-
-  const fetchTemplates = async () => {
-    try {
-      const response = await api.get('/doctors/templates');
-      setTemplates(response.data.templates);
-    } catch (err: any) {
-      console.error('Error fetching templates:', err);
-    }
-  };
-
-  const handleTemplateSelect = (templateId: string, setFieldValue: any) => {
-    if (templateId) {
-      const template = templates.find(t => t._id === templateId);
-      if (template) {
-        setFieldValue('symptoms', template.symptoms);
-        setFieldValue('prescription', template.prescription);
-        
-        // Set follow-up date if template has followUpDays
-        if (template.followUpDays > 0) {
-          const followUpDate = new Date();
-          followUpDate.setDate(followUpDate.getDate() + template.followUpDays);
-          setFieldValue('nextFollowUp', followUpDate);
-        }
-      }
     }
   };
 
@@ -285,21 +249,6 @@ const NewPrescription: React.FC = () => {
                         </>
                       )}
                     </Field>
-                    
-                    <div>
-                      <label className="form-label">Use Template (optional)</label>
-                      <select
-                        onChange={(e) => handleTemplateSelect(e.target.value, setFieldValue)}
-                        className="form-select"
-                      >
-                        <option value="">Select a template</option>
-                        {templates.map((template) => (
-                          <option key={template._id} value={template._id}>
-                            {template.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
                   </div>
                 </div>
 

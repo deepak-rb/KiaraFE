@@ -5,7 +5,7 @@ import api from '../utils/api';
 import { SweetAlert } from '../utils/SweetAlert';
 import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
-import { doctorProfileSchema, templateSchema } from '../utils/validationSchemas';
+import { doctorProfileSchema } from '../utils/validationSchemas';
 import { FormInput, FormTextarea, FormSubmitButton, FormCancelButton } from '../components/FormComponents';
 
 // Import Doctor type from AuthContext
@@ -21,23 +21,13 @@ type Doctor = {
   digitalSignature?: string;
 };
 
-interface Template {
-  _id: string;
-  name: string;
-  symptoms: string;
-  prescription: string;
-  followUpDays: number;
-}
-
 const Settings: React.FC = () => {
   const { doctor, updateDoctor } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [templates, setTemplates] = useState<Template[]>([]);
   const [digitalSignature, setDigitalSignature] = useState<File | null>(null);
   const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
-  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [deletingSignature, setDeletingSignature] = useState(false);
 
   const profileInitialValues = {
@@ -49,35 +39,14 @@ const Settings: React.FC = () => {
     phone: doctor?.phone || ''
   };
 
-  const templateInitialValues = editingTemplate ? {
-    name: editingTemplate.name,
-    symptoms: editingTemplate.symptoms,
-    prescription: editingTemplate.prescription,
-    followUpDays: editingTemplate.followUpDays
-  } : {
-    name: '',
-    symptoms: '',
-    prescription: '',
-    followUpDays: 0
-  };
-
   useEffect(() => {
-    fetchTemplates();
+    // Any initialization code can go here
   }, []);
 
   // Helper function to get signature URL
   const getSignatureUrl = (): string | null => {
     if (!doctor?.digitalSignature) return null;
     return `http://localhost:5000/${doctor.digitalSignature}`;
-  };
-
-  const fetchTemplates = async () => {
-    try {
-      const response = await api.get('/doctors/templates');
-      setTemplates(response.data.templates);
-    } catch (err: any) {
-      console.error('Error fetching templates:', err);
-    }
   };
 
   const onSignatureDrop = (acceptedFiles: File[]) => {
@@ -181,53 +150,6 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleTemplateSubmit = async (values: any) => {
-    setError('');
-    setSuccess('');
-
-    try {
-      if (editingTemplate) {
-        await api.put(`/doctors/templates/${editingTemplate._id}`, values);
-        SweetAlert.templateUpdated(values.name);
-        setEditingTemplate(null);
-      } else {
-        await api.post('/doctors/templates', values);
-        SweetAlert.templateAdded(values.name);
-      }
-
-      fetchTemplates();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Error saving template');
-      SweetAlert.error('Save Failed', err.response?.data?.message || 'Error saving template');
-    }
-  };
-
-  const handleEditTemplate = (template: Template) => {
-    setEditingTemplate(template);
-    setActiveTab('templates');
-  };
-
-  const handleDeleteTemplate = async (templateId: string) => {
-    const template = templates.find(t => t._id === templateId);
-    const result = await SweetAlert.confirmDelete(`template "${template?.name}"`);
-    if (!result.isConfirmed) {
-      return;
-    }
-
-    try {
-      await api.delete(`/doctors/templates/${templateId}`);
-      SweetAlert.templateDeleted(template?.name || 'Template');
-      fetchTemplates();
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Error deleting template');
-      SweetAlert.error('Delete Failed', err.response?.data?.message || 'Error deleting template');
-    }
-  };
-
-  const cancelEdit = () => {
-    setEditingTemplate(null);
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       
@@ -258,16 +180,6 @@ const Settings: React.FC = () => {
                 }`}
               >
                 Digital Signature
-              </button>
-              <button
-                onClick={() => setActiveTab('templates')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'templates'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Templates
               </button>
             </nav>
           </div>
@@ -442,110 +354,6 @@ const Settings: React.FC = () => {
                     >
                       {doctor?.digitalSignature ? 'Replace Signature' : 'Upload Signature'}
                     </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Templates Tab */}
-          {activeTab === 'templates' && (
-            <div className="space-y-6">
-              <div className="bg-white shadow rounded-lg p-6">
-                <h2 className="text-xl font-semibold mb-6">
-                  {editingTemplate ? 'Edit Template' : 'Add New Template'}
-                </h2>
-                <Formik
-                  initialValues={templateInitialValues}
-                  validationSchema={templateSchema}
-                  onSubmit={handleTemplateSubmit}
-                  enableReinitialize
-                  validateOnChange={true}
-                  validateOnBlur={true}
-                >
-                  {({ isSubmitting, isValid }) => (
-                    <Form className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <FormInput
-                          name="name"
-                          label="Template Name"
-                          required
-                        />
-                        <FormInput
-                          name="followUpDays"
-                          label="Follow-up Days"
-                          type="number"
-                        />
-                      </div>
-                      <FormTextarea
-                        name="symptoms"
-                        label="Symptoms"
-                        rows={4}
-                        required
-                      />
-                      <FormTextarea
-                        name="prescription"
-                        label="Prescription"
-                        rows={6}
-                        required
-                      />
-                      <div className="flex justify-end space-x-4">
-                        {editingTemplate && (
-                          <FormCancelButton onClick={cancelEdit}>
-                            Cancel
-                          </FormCancelButton>
-                        )}
-                        <FormSubmitButton
-                          isSubmitting={isSubmitting}
-                          isValid={isValid}
-                        >
-                          {editingTemplate ? 'Update Template' : 'Add Template'}
-                        </FormSubmitButton>
-                      </div>
-                    </Form>
-                  )}
-                </Formik>
-              </div>
-
-              {/* Templates List */}
-              <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-semibold mb-4">Saved Templates</h3>
-                {templates.length === 0 ? (
-                  <p className="text-gray-500 text-center py-8">No templates saved yet.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {templates.map((template) => (
-                      <div key={template._id} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-medium text-gray-900">{template.name}</h4>
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleEditTemplate(template)}
-                              className="text-blue-600 hover:text-blue-800 text-sm"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDeleteTemplate(template._id)}
-                              className="text-red-600 hover:text-red-800 text-sm"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-2">
-                          <strong>Symptoms:</strong> {template.symptoms.substring(0, 100)}...
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          <strong>Prescription:</strong> {template.prescription.substring(0, 100)}...
-                        </p>
-                        {template.followUpDays > 0 && (
-                          <p className="text-sm text-gray-600 mt-2">
-                            <strong>Follow-up:</strong> {template.followUpDays} days
-                          </p>
-                        )}
-                      </div>
-                    ))}
                   </div>
                 )}
               </div>

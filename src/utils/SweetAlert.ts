@@ -193,43 +193,6 @@ export const SweetAlert = {
     });
   },
 
-  // Template operations
-  templateAdded: (templateName: string) => {
-    return Swal.fire({
-      title: 'Template Added Successfully!',
-      text: `Template "${templateName}" is now available for use`,
-      icon: 'success',
-      confirmButtonText: 'OK',
-      confirmButtonColor: '#10B981',
-      timer: 2000,
-      timerProgressBar: true
-    });
-  },
-
-  templateUpdated: (templateName: string) => {
-    return Swal.fire({
-      title: 'Template Updated Successfully!',
-      text: `Template "${templateName}" has been updated`,
-      icon: 'success',
-      confirmButtonText: 'OK',
-      confirmButtonColor: '#10B981',
-      timer: 2000,
-      timerProgressBar: true
-    });
-  },
-
-  templateDeleted: (templateName: string) => {
-    return Swal.fire({
-      title: 'Template Deleted!',
-      text: `Template "${templateName}" has been removed`,
-      icon: 'success',
-      confirmButtonText: 'OK',
-      confirmButtonColor: '#10B981',
-      timer: 2000,
-      timerProgressBar: true
-    });
-  },
-
   // Network error
   networkError: () => {
     return Swal.fire({

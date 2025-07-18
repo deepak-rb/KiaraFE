@@ -55,12 +55,7 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <motion.nav 
-      className="bg-white/80 backdrop-blur-lg shadow-lg navbar-fixed border-b border-white/20"
-      initial={{ y: -100 }}
-      animate={{ y: 0 }}
-      transition={{ duration: 0.5, ease: "easeOut" }}
-    >
+    <nav className="bg-white/80 backdrop-blur-lg shadow-lg navbar-fixed border-b border-white/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           {/* Logo */}
@@ -86,38 +81,31 @@ const Navbar: React.FC = () => {
               { to: '/patients/search', label: 'Search Patient', short: 'Search' },
               { to: '/settings', label: 'Settings' }
             ].map((item, index) => (
-              <motion.div
+              <div
                 key={item.to}
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
+                className="relative"
               >
                 <Link
                   to={item.to}
-                  className={`nav-item nav-link relative ${isActive(item.to) ? 'nav-link-active' : 'nav-link-inactive'}`}
+                  className={`nav-item nav-link ${isActive(item.to) ? 'nav-link-active' : 'nav-link-inactive'}`}
                 >
                   <span className="hidden lg:inline">{item.label}</span>
                   <span className="lg:hidden">{item.short || item.label}</span>
-                  {isActive(item.to) && (
-                    <motion.div
-                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-purple-500"
-                      layoutId="underline"
-                      initial={false}
-                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    />
-                  )}
                 </Link>
-              </motion.div>
+                {isActive(item.to) && (
+                  <motion.div
+                    className="absolute bottom-0 left-1 right-1 h-0.5 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"
+                    layoutId="underline"
+                    initial={false}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  />
+                )}
+              </div>
             ))}
           </div>
 
           {/* Desktop User Info and Logout */}
-          <motion.div 
-            className="hidden md:flex items-center space-x-4"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 }}
-          >
+          <div className="hidden md:flex items-center space-x-4">
             <div className="text-sm bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent font-medium">
               <span className="text-gray-600">Dr. </span>
               <span className="font-semibold">{doctor?.name}</span>
@@ -130,7 +118,7 @@ const Navbar: React.FC = () => {
             >
               Logout
             </motion.button>
-          </motion.div>
+          </div>
 
           {/* Mobile menu button */}
           <div className="md:hidden flex items-center">
@@ -243,7 +231,7 @@ const Navbar: React.FC = () => {
           )}
         </AnimatePresence>
       </div>
-    </motion.nav>
+    </nav>
   );
 };
 
