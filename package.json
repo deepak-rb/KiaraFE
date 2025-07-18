@@ -18,6 +18,7 @@
     "@types/react-router-dom": "^5.3.3",
     "axios": "^1.10.0",
     "formik": "^2.4.6",
+    "framer-motion": "^12.23.6",
     "fuse.js": "^7.1.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.1",
@@ -59,6 +60,7 @@
   "devDependencies": {
     "@craco/craco": "^7.1.0",
     "autoprefixer": "^10.4.21",
+    "eslint-webpack-plugin": "^5.0.2",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.17"
   }

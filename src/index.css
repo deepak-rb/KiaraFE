@@ -9,6 +9,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  min-height: 100vh;
 }
 
 code {
@@ -16,34 +18,226 @@ code {
     monospace;
 }
 
-/* Custom styles for the clinic app */
+/* Enhanced prescription styles with animations */
 .prescription-print {
-  @apply bg-white p-8 max-w-4xl mx-auto;
+  @apply bg-white p-8 max-w-4xl mx-auto shadow-2xl rounded-xl;
+  transform: translateY(0);
+  transition: all 0.3s ease;
+}
+
+.prescription-print:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
 }
 
 .prescription-header {
   @apply border-b-2 border-gray-300 pb-4 mb-6;
+  position: relative;
+}
+
+.prescription-header::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #60a5fa, #a855f7);
 }
 
 .prescription-content {
   @apply space-y-4;
+  animation: fadeInUp 0.6s ease forwards;
 }
 
 .signature-area {
   @apply mt-8 flex justify-end;
+  animation: slideInRight 0.8s ease forwards;
 }
 
-/* Form styles */
+/* Enhanced form styles with professional animations */
 .form-group {
-  @apply mb-4;
+  @apply mb-6;
+  position: relative;
 }
 
 .form-label {
-  @apply block text-sm font-medium text-gray-700 mb-2;
+  @apply block text-sm font-semibold text-gray-700 mb-2;
+  transition: color 0.2s ease;
 }
 
 .form-input {
-  @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200;
+  @apply w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.form-input:focus {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.15);
+}
+
+.form-input:hover {
+  border-color: #93c5fd;
+}
+
+.form-input::placeholder {
+  transition: opacity 0.2s ease;
+}
+
+.form-input:focus::placeholder {
+  opacity: 0.7;
+}
+
+.form-input:invalid {
+  @apply border-red-300;
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Enhanced button animations */
+.btn-animated {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-animated::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  transition: left 0.5s;
+}
+
+.btn-animated:hover::before {
+  left: 100%;
+}
+
+/* Smooth focus transitions */
+.focus-ring {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+  border-color: #3b82f6;
+}
+
+/* Loading skeleton animations */
+.skeleton-pulse {
+  animation: skeleton-pulse 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes skeleton-pulse {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.5;
+  }
+}
+
+/* Notification slide-in */
+.notification-enter {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.notification-enter-active {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.notification-exit {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.notification-exit-active {
+  transform: translateX(100%);
+  opacity: 0;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+/* Card stack effect */
+.card-stack {
+  position: relative;
+}
+
+.card-stack::before,
+.card-stack::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: -2px;
+  bottom: -2px;
+  background: white;
+  border-radius: inherit;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  z-index: -1;
+}
+
+.card-stack::after {
+  top: 4px;
+  left: 4px;
+  right: -4px;
+  bottom: -4px;
+  z-index: -2;
+}
+
+/* Progressive blur effect */
+.progressive-blur {
+  backdrop-filter: blur(0px);
+  transition: backdrop-filter 0.3s ease;
+}
+
+.progressive-blur:hover {
+  backdrop-filter: blur(8px);
+}
+
+/* Typing animation */
+.typing-animation {
+  border-right: 2px solid #3b82f6;
+  animation: typing-cursor 1s infinite;
+}
+
+@keyframes typing-cursor {
+  0%, 50% { border-color: #3b82f6; }
+  51%, 100% { border-color: transparent; }
 }
 
 .form-input:invalid {

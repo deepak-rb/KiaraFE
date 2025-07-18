@@ -191,7 +191,9 @@ const PrescriptionView: React.FC = () => {
             <div className="prescription-content">
               <div className="mb-6">
                 <h4 className="text-md font-semibold text-gray-900 mb-2">Patient Information</h4>
-                <div className="grid grid-cols-2 gap-4">
+                <hr />
+                <br />
+                <div className="grid grid-cols-2 gap-4 text-left">
                   <div>
                     <p><strong>Name:</strong> {prescription.patientId.name}</p>
                     <p><strong>Age:</strong> {prescription.patientId.age} years</p>
@@ -203,7 +205,7 @@ const PrescriptionView: React.FC = () => {
                   </div>
                 </div>
               </div>
-
+      <hr />
               {/* Symptoms */}
               <div className="mb-6">
                 <h4 className="text-md font-semibold text-gray-900 mb-2">Symptoms</h4>
@@ -242,10 +244,10 @@ const PrescriptionView: React.FC = () => {
             {/* Signature */}
             <div className="signature-area">
               <div className="text-center">
-                {prescription.digitalSignature && (
+                {doctor?.digitalSignature && (
                   <div className="mb-4">
                     <img
-                      src={`http://localhost:5000/${prescription.digitalSignature}`}
+                      src={`http://localhost:5000/${doctor.digitalSignature}`}
                       alt="Digital Signature"
                       className="h-16 mx-auto"
                     />

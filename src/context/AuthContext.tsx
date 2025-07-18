@@ -75,6 +75,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const doctor = JSON.parse(doctorData);
         dispatch({ type: 'LOGIN_SUCCESS', payload: doctor });
+        
+        // Fetch fresh doctor data from backend to ensure all fields are present
+        fetchDoctorProfile();
       } catch (error) {
         localStorage.removeItem('token');
         localStorage.removeItem('doctor');
@@ -84,6 +87,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       dispatch({ type: 'SET_LOADING', payload: false });
     }
   }, []);
+
+  const fetchDoctorProfile = async () => {
+    try {
+      const response = await api.get('/auth/me');
+      const doctor = response.data.doctor;
+      localStorage.setItem('doctor', JSON.stringify(doctor));
+      dispatch({ type: 'UPDATE_DOCTOR', payload: doctor });
+    } catch (error) {
+      console.error('Error fetching doctor profile:', error);
+      // If fetching fails, don't logout the user, just continue with cached data
+    }
+  };
 
   const login = async (username: string, password: string) => {
     dispatch({ type: 'LOGIN_START' });

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import api from '../utils/api';
 import { useLoading } from '../context/LoadingContext';
+import AnimatedCard from '../components/AnimatedCard';
 
 interface Patient {
   _id: string;
@@ -178,30 +180,45 @@ const Dashboard: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
       <div className="px-4 py-6 sm:px-0">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
+        <motion.h1 
+          className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-8"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          Dashboard
+        </motion.h1>
           
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4 mb-8">
+          <motion.div 
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4 mb-8"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+          >
             {/* Total Patients */}
-            <div className="bg-white overflow-hidden shadow rounded-lg">
+            <AnimatedCard delay={0.1} className="hover-lift">
               <div className="p-4">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-blue-500 rounded-md flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <motion.div 
+                      className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center shadow-lg"
+                      whileHover={{ scale: 1.1, rotate: 5 }}
+                    >
+                      <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
                       </svg>
-                    </div>
+                    </motion.div>
                   </div>
-                  <div className="ml-5 w-0 flex-1">
+                  <div className="ml-4 w-0 flex-1">
                     <dl>
-                      <dt className="text-xs font-medium text-gray-500 leading-tight">Total Patients</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.totalPatients}</dd>
+                      <dt className="text-xs font-medium text-gray-500 uppercase tracking-wider">Total Patients</dt>
+                      <dd className="text-2xl font-bold text-gray-900">{stats.totalPatients}</dd>
                     </dl>
                   </div>
                 </div>
               </div>
-            </div>
+            </AnimatedCard>
 
             {/* Total Prescriptions */}
             <div className="bg-white overflow-hidden shadow rounded-lg">
@@ -328,7 +345,7 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Follow-up Details Section */}
           <div className="bg-white shadow rounded-lg p-6 mb-8">
