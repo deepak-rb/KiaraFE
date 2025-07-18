@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -10,4 +14,254 @@ body {
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+/* Custom styles for the clinic app */
+.prescription-print {
+  @apply bg-white p-8 max-w-4xl mx-auto;
+}
+
+.prescription-header {
+  @apply border-b-2 border-gray-300 pb-4 mb-6;
+}
+
+.prescription-content {
+  @apply space-y-4;
+}
+
+.signature-area {
+  @apply mt-8 flex justify-end;
+}
+
+/* Form styles */
+.form-group {
+  @apply mb-4;
+}
+
+.form-label {
+  @apply block text-sm font-medium text-gray-700 mb-2;
+}
+
+.form-input {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200;
+}
+
+.form-input:invalid {
+  @apply border-red-300;
+}
+
+.form-input:valid {
+  @apply border-green-300;
+}
+
+.form-textarea {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y transition-colors duration-200;
+}
+
+.form-select {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white transition-colors duration-200;
+}
+
+/* Validation state classes */
+.form-input-error {
+  @apply border-red-300 focus:ring-red-500 focus:border-red-500;
+}
+
+.form-input-success {
+  @apply border-green-300 focus:ring-green-500 focus:border-green-500;
+}
+
+.form-input-warning {
+  @apply border-yellow-300 focus:ring-yellow-500 focus:border-yellow-500;
+}
+
+.validation-message {
+  @apply text-sm mt-1 transition-all duration-200;
+}
+
+.validation-error {
+  @apply text-red-600;
+}
+
+.validation-success {
+  @apply text-green-600;
+}
+
+.validation-warning {
+  @apply text-yellow-600;
+}
+
+/* Button styles */
+.btn {
+  @apply px-4 py-2 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200;
+}
+
+.btn-primary {
+  @apply bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500;
+}
+
+.btn-secondary {
+  @apply bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500;
+}
+
+.btn-success {
+  @apply bg-green-600 text-white hover:bg-green-700 focus:ring-green-500;
+}
+
+.btn-danger {
+  @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+}
+
+.btn-outline {
+  @apply border border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-500;
+}
+
+/* Card styles */
+.card {
+  @apply bg-white shadow-md rounded-lg border border-gray-200;
+}
+
+.card-header {
+  @apply px-6 py-4 border-b border-gray-200;
+}
+
+.card-body {
+  @apply px-6 py-4;
+}
+
+.card-footer {
+  @apply px-6 py-4 border-t border-gray-200;
+}
+
+/* Navigation */
+.nav-link {
+  @apply px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200;
+}
+
+.nav-link-active {
+  @apply bg-blue-100 text-blue-700;
+}
+
+.nav-link-inactive {
+  @apply text-gray-600 hover:text-gray-900 hover:bg-gray-100;
+}
+
+/* Mobile Navigation */
+.mobile-nav-link {
+  @apply block px-3 py-2 rounded-md text-base font-medium transition-colors duration-200;
+}
+
+.mobile-nav-link-active {
+  @apply bg-blue-100 text-blue-700;
+}
+
+.mobile-nav-link-inactive {
+  @apply text-gray-600 hover:text-gray-900 hover:bg-gray-100;
+}
+
+/* Mobile menu animations */
+.mobile-menu-enter {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.mobile-menu-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms, transform 300ms;
+}
+
+.mobile-menu-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.mobile-menu-exit-active {
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 300ms, transform 300ms;
+}
+
+/* Fixed navbar styles */
+.navbar-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+}
+
+/* Main content with navbar offset */
+.main-content {
+  padding-top: 4rem; /* 64px - height of navbar */
+}
+
+/* Mobile responsiveness adjustments */
+@media (max-width: 640px) {
+  .main-content {
+    padding-top: 4rem; /* Keep same padding for mobile */
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Responsive adjustments for tablet sizes */
+@media (min-width: 640px) and (max-width: 768px) {
+  .nav-link {
+    @apply text-xs px-2 py-2;
+  }
+}
+
+/* Responsive utilities */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  nav {
+    display: none !important;
+  }
+  
+  .prescription-print {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    background: white !important;
+  }
+  
+  body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  .min-h-screen {
+    min-height: auto !important;
+    background: white !important;
+  }
+  
+  .bg-gray-50 {
+    background: white !important;
+  }
+  
+  .max-w-4xl {
+    max-width: none !important;
+    width: 100% !important;
+  }
+  
+  .py-6, .px-4, .sm\:px-6, .lg\:px-8 {
+    padding: 0 !important;
+  }
+  
+  .mx-auto {
+    margin: 0 !important;
+  }
+  
+  #prescription-content {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 20px !important;
+  }
 }

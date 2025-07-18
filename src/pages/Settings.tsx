@@ -1,0 +1,445 @@
+import React, { useState, useEffect } from 'react';
+import { Formik, Form } from 'formik';
+import { useDropzone } from 'react-dropzone';
+import api from '../utils/api';
+import { SweetAlert } from '../utils/SweetAlert';
+import Navbar from '../components/Navbar';
+import { useAuth } from '../context/AuthContext';
+import { doctorProfileSchema, templateSchema } from '../utils/validationSchemas';
+import { FormInput, FormTextarea, FormSubmitButton, FormCancelButton } from '../components/FormComponents';
+
+interface Template {
+  _id: string;
+  name: string;
+  symptoms: string;
+  prescription: string;
+  followUpDays: number;
+}
+
+const Settings: React.FC = () => {
+  const { doctor, updateDoctor } = useAuth();
+  const [activeTab, setActiveTab] = useState('profile');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [digitalSignature, setDigitalSignature] = useState<File | null>(null);
+  const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
+
+  const profileInitialValues = {
+    name: doctor?.name || '',
+    email: doctor?.email || '',
+    specialization: doctor?.specialization || '',
+    clinicName: doctor?.clinicName || '',
+    clinicAddress: doctor?.clinicAddress || '',
+    phone: doctor?.phone || ''
+  };
+
+  const templateInitialValues = editingTemplate ? {
+    name: editingTemplate.name,
+    symptoms: editingTemplate.symptoms,
+    prescription: editingTemplate.prescription,
+    followUpDays: editingTemplate.followUpDays
+  } : {
+    name: '',
+    symptoms: '',
+    prescription: '',
+    followUpDays: 0
+  };
+
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+
+  const fetchTemplates = async () => {
+    try {
+      const response = await api.get('/doctors/templates');
+      setTemplates(response.data.templates);
+    } catch (err: any) {
+      console.error('Error fetching templates:', err);
+    }
+  };
+
+  const onSignatureDrop = (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (file) {
+      setDigitalSignature(file);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setSignaturePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const { getRootProps: getSignatureProps, getInputProps: getSignatureInputProps, isDragActive: isSignatureDragActive } = useDropzone({
+    onDrop: onSignatureDrop,
+    accept: {
+      'image/*': ['.jpeg', '.jpg', '.png', '.gif']
+    },
+    maxFiles: 1
+  });
+
+  const handleProfileSubmit = async (values: any) => {
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await api.put('/doctors/profile', values);
+      updateDoctor(response.data.doctor);
+      SweetAlert.profileUpdated();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Error updating profile');
+      SweetAlert.error('Update Failed', err.response?.data?.message || 'Error updating profile');
+    }
+  };
+
+  const handleSignatureUpload = async () => {
+    if (!digitalSignature) {
+      setError('Please select a signature image');
+      return;
+    }
+
+    setError('');
+    setSuccess('');
+
+    try {
+      const formData = new FormData();
+      formData.append('signature', digitalSignature);
+
+      await api.post('/doctors/signature', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      SweetAlert.uploadSuccess('Digital signature uploaded successfully');
+      setDigitalSignature(null);
+      setSignaturePreview(null);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Error uploading signature');
+      SweetAlert.error('Upload Failed', err.response?.data?.message || 'Error uploading signature');
+    }
+  };
+
+  const handleTemplateSubmit = async (values: any) => {
+    setError('');
+    setSuccess('');
+
+    try {
+      if (editingTemplate) {
+        await api.put(`/doctors/templates/${editingTemplate._id}`, values);
+        SweetAlert.templateUpdated(values.name);
+        setEditingTemplate(null);
+      } else {
+        await api.post('/doctors/templates', values);
+        SweetAlert.templateAdded(values.name);
+      }
+
+      fetchTemplates();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Error saving template');
+      SweetAlert.error('Save Failed', err.response?.data?.message || 'Error saving template');
+    }
+  };
+
+  const handleEditTemplate = (template: Template) => {
+    setEditingTemplate(template);
+    setActiveTab('templates');
+  };
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    const template = templates.find(t => t._id === templateId);
+    const result = await SweetAlert.confirmDelete(`template "${template?.name}"`);
+    if (!result.isConfirmed) {
+      return;
+    }
+
+    try {
+      await api.delete(`/doctors/templates/${templateId}`);
+      SweetAlert.templateDeleted(template?.name || 'Template');
+      fetchTemplates();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Error deleting template');
+      SweetAlert.error('Delete Failed', err.response?.data?.message || 'Error deleting template');
+    }
+  };
+
+  const cancelEdit = () => {
+    setEditingTemplate(null);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      
+      
+      <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="px-4 py-6 sm:px-0">
+          <h1 className="text-3xl font-bold text-gray-900 mb-8">Settings</h1>
+          
+          {/* Tab Navigation */}
+          <div className="border-b border-gray-200 mb-8">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('profile')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'profile'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Profile
+              </button>
+              <button
+                onClick={() => setActiveTab('signature')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'signature'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Digital Signature
+              </button>
+              <button
+                onClick={() => setActiveTab('templates')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'templates'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Templates
+              </button>
+            </nav>
+          </div>
+
+          {/* Success/Error Messages */}
+          {success && (
+            <div className="mb-4 bg-green-50 border border-green-200 rounded-md p-4">
+              <p className="text-green-600">{success}</p>
+            </div>
+          )}
+          {error && (
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
+              <p className="text-red-600">{error}</p>
+            </div>
+          )}
+
+          {/* Profile Tab */}
+          {activeTab === 'profile' && (
+            <div className="bg-white shadow rounded-lg p-6">
+              <h2 className="text-xl font-semibold mb-6">Doctor Profile</h2>
+              <Formik
+                key={doctor?.id || 'no-doctor'}
+                initialValues={profileInitialValues}
+                validationSchema={doctorProfileSchema}
+                onSubmit={handleProfileSubmit}
+                enableReinitialize
+                validateOnChange={true}
+                validateOnBlur={true}
+              >
+                {({ isSubmitting, isValid }) => (
+                  <Form className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <FormInput
+                        name="name"
+                        label="Full Name"
+                        required
+                      />
+                      <FormInput
+                        name="email"
+                        label="Email Address"
+                        type="email"
+                        required
+                      />
+                      <FormInput
+                        name="specialization"
+                        label="Specialization"
+                        required
+                      />
+                      <FormInput
+                        name="phone"
+                        label="Phone Number"
+                        type="tel"
+                        required
+                      />
+                      <FormInput
+                        name="clinicName"
+                        label="Clinic Name"
+                        required
+                      />
+                    </div>
+                    <FormTextarea
+                      name="clinicAddress"
+                      label="Clinic Address"
+                      rows={3}
+                      required
+                    />
+                    <div className="flex justify-end">
+                      <FormSubmitButton
+                        isSubmitting={isSubmitting}
+                        isValid={isValid}
+                      >
+                        Update Profile
+                      </FormSubmitButton>
+                    </div>
+                  </Form>
+                )}
+              </Formik>
+            </div>
+          )}
+
+          {/* Digital Signature Tab */}
+          {activeTab === 'signature' && (
+            <div className="bg-white shadow rounded-lg p-6">
+              <h2 className="text-xl font-semibold mb-6">Digital Signature</h2>
+              <div
+                {...getSignatureProps()}
+                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                  isSignatureDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                }`}
+              >
+                <input {...getSignatureInputProps()} />
+                {signaturePreview ? (
+                  <div className="space-y-4">
+                    <img
+                      src={signaturePreview}
+                      alt="Signature preview"
+                      className="mx-auto max-h-32 object-contain"
+                    />
+                    <p className="text-sm text-gray-600">Click or drag to replace signature</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <p className="text-sm text-gray-600">
+                      {isSignatureDragActive ? 'Drop the signature here' : 'Click to upload or drag and drop your digital signature'}
+                    </p>
+                  </div>
+                )}
+              </div>
+              {digitalSignature && (
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={handleSignatureUpload}
+                    className="btn btn-primary"
+                  >
+                    Upload Signature
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Templates Tab */}
+          {activeTab === 'templates' && (
+            <div className="space-y-6">
+              <div className="bg-white shadow rounded-lg p-6">
+                <h2 className="text-xl font-semibold mb-6">
+                  {editingTemplate ? 'Edit Template' : 'Add New Template'}
+                </h2>
+                <Formik
+                  initialValues={templateInitialValues}
+                  validationSchema={templateSchema}
+                  onSubmit={handleTemplateSubmit}
+                  enableReinitialize
+                  validateOnChange={true}
+                  validateOnBlur={true}
+                >
+                  {({ isSubmitting, isValid }) => (
+                    <Form className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <FormInput
+                          name="name"
+                          label="Template Name"
+                          required
+                        />
+                        <FormInput
+                          name="followUpDays"
+                          label="Follow-up Days"
+                          type="number"
+                        />
+                      </div>
+                      <FormTextarea
+                        name="symptoms"
+                        label="Symptoms"
+                        rows={4}
+                        required
+                      />
+                      <FormTextarea
+                        name="prescription"
+                        label="Prescription"
+                        rows={6}
+                        required
+                      />
+                      <div className="flex justify-end space-x-4">
+                        {editingTemplate && (
+                          <FormCancelButton onClick={cancelEdit}>
+                            Cancel
+                          </FormCancelButton>
+                        )}
+                        <FormSubmitButton
+                          isSubmitting={isSubmitting}
+                          isValid={isValid}
+                        >
+                          {editingTemplate ? 'Update Template' : 'Add Template'}
+                        </FormSubmitButton>
+                      </div>
+                    </Form>
+                  )}
+                </Formik>
+              </div>
+
+              {/* Templates List */}
+              <div className="bg-white shadow rounded-lg p-6">
+                <h3 className="text-lg font-semibold mb-4">Saved Templates</h3>
+                {templates.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No templates saved yet.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {templates.map((template) => (
+                      <div key={template._id} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-medium text-gray-900">{template.name}</h4>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleEditTemplate(template)}
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTemplate(template._id)}
+                              className="text-red-600 hover:text-red-800 text-sm"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">
+                          <strong>Symptoms:</strong> {template.symptoms.substring(0, 100)}...
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          <strong>Prescription:</strong> {template.prescription.substring(0, 100)}...
+                        </p>
+                        {template.followUpDays > 0 && (
+                          <p className="text-sm text-gray-600 mt-2">
+                            <strong>Follow-up:</strong> {template.followUpDays} days
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Settings;
