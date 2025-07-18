@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { LoadingProvider } from './context/LoadingContext';
 import Layout from './components/Layout';
 import AnimatedRoute from './components/AnimatedRoute';
+import ScrollEndIndicator from './components/ScrollEndIndicator';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import AddPatient from './pages/AddPatient';
@@ -16,6 +17,21 @@ import PrescriptionView from './pages/PrescriptionView';
 import AllPrescriptions from './pages/AllPrescriptions';
 import Settings from './pages/Settings';
 import './App.css';
+
+// Component to scroll to top when route changes
+const ScrollToTop: React.FC = () => {
+  const location = useLocation();
+  
+  useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: 'smooth'
+    });
+  }, [location.pathname]);
+  
+  return null;
+};
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -132,8 +148,10 @@ function App() {
     <AuthProvider>
       <LoadingProvider>
         <Router>
-          <div className="App bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen">
+          <ScrollToTop />
+          <div className="App bg-gradient-to-br from-gray-50 to-blue-50 min-h-screen" style={{ overflow: 'hidden auto' }}>
             <AnimatedRoutes />
+            <ScrollEndIndicator />
           </div>
         </Router>
       </LoadingProvider>

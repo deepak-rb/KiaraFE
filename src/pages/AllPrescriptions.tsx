@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../utils/api';
 import { SweetAlert } from '../utils/SweetAlert';
 
@@ -47,6 +48,7 @@ const AllPrescriptions: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
+  const [isFilterTransitioning, setIsFilterTransitioning] = useState(false);
 
   useEffect(() => {
     fetchAllPrescriptions();
@@ -279,15 +281,31 @@ const AllPrescriptions: React.FC = () => {
               )}
             </div>
             <div className="flex space-x-4">
-              <button
+              <motion.button
                 onClick={() => {
-                  setFilterType(filterType === 'followups' ? 'all' : 'followups');
-                  navigate(filterType === 'followups' ? '/prescriptions/all' : '/prescriptions/all?filter=followups');
+                  setIsFilterTransitioning(true);
+                  setTimeout(() => {
+                    setFilterType(filterType === 'followups' ? 'all' : 'followups');
+                    navigate(filterType === 'followups' ? '/prescriptions/all' : '/prescriptions/all?filter=followups');
+                    setTimeout(() => setIsFilterTransitioning(false), 100);
+                  }, 150);
                 }}
-                className="btn btn-secondary"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`btn transition-all duration-300 ${
+                  filterType === 'followups'
+                    ? 'btn-secondary bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200'
+                    : 'btn-secondary'
+                }`}
+                animate={filterType === 'followups' ? { 
+                  boxShadow: ["0 0 0 0 rgba(249, 115, 22, 0.4)", "0 0 0 8px rgba(249, 115, 22, 0)", "0 0 0 0 rgba(249, 115, 22, 0)"] 
+                } : {}}
+                transition={{ 
+                  boxShadow: { duration: 2, repeat: Infinity, ease: "easeInOut" }
+                }}
               >
                 {filterType === 'followups' ? 'Show All' : 'Show Follow-ups Only'}
-              </button>
+              </motion.button>
               <button
                 onClick={() => navigate('/prescriptions/new')}
                 className="btn btn-primary"
@@ -423,27 +441,95 @@ const AllPrescriptions: React.FC = () => {
               </button>
             </div>
           ) : (
-            <div className="bg-white shadow overflow-hidden sm:rounded-md">
-              <ul className="divide-y divide-gray-200">
-                {filteredPrescriptions.map((prescription) => (
-                  <li key={prescription._id}>
-                    <div className="px-4 py-6 sm:px-6 hover:bg-gray-50 transition-colors">
+            <div className="relative">
+              {isFilterTransitioning && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-white bg-opacity-75 backdrop-blur-sm z-10 flex items-center justify-center rounded-md"
+                >
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600"></div>
+                    <span className="text-orange-600 font-medium">
+                      {filterType === 'all' ? 'Loading follow-ups...' : 'Loading all prescriptions...'}
+                    </span>
+                  </div>
+                </motion.div>
+              )}
+              <AnimatePresence mode="wait">
+              <motion.div
+                key={filterType}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ 
+                  duration: 0.3,
+                  ease: "easeInOut"
+                }}
+                className="bg-white shadow overflow-hidden sm:rounded-md"
+              >
+                <motion.ul 
+                  className="divide-y divide-gray-200"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.1, duration: 0.3 }}
+                >
+                  {filteredPrescriptions.map((prescription, index) => (
+                    <motion.li
+                      key={prescription._id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ 
+                        delay: index * 0.05,
+                        duration: 0.3,
+                        ease: "easeOut"
+                      }}
+                    >
+                    <div className={`px-4 py-6 sm:px-6 transition-all duration-300 ${
+                      filterType === 'followups' && prescription.nextFollowUp
+                        ? 'bg-gradient-to-r from-orange-50 to-yellow-50 border-l-4 border-orange-400 hover:from-orange-100 hover:to-yellow-100'
+                        : 'hover:bg-gray-50'
+                    }`}>
                       <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                         {/* Left section - Prescription details */}
                         <div className="flex-1 min-w-0 space-y-3">
                           {/* Prescription ID and Status */}
                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                            <h3 className="text-lg font-semibold text-blue-600 truncate">
-                              {highlightSearchTerm(prescription.prescriptionId, searchQuery)}
-                            </h3>
                             <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                Active
+                              <h3 className="text-lg font-semibold text-blue-600 truncate">
+                                {highlightSearchTerm(prescription.prescriptionId, searchQuery)}
+                              </h3>
+                              {filterType === 'followups' && prescription.nextFollowUp && (
+                                <motion.span
+                                  initial={{ scale: 0, rotate: -180 }}
+                                  animate={{ scale: 1, rotate: 0 }}
+                                  transition={{ delay: index * 0.05 + 0.3, duration: 0.4, type: "spring" }}
+                                  className="inline-flex items-center"
+                                >
+                                  <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
+                                  </svg>
+                                </motion.span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                filterType === 'followups' && prescription.nextFollowUp
+                                  ? 'bg-orange-100 text-orange-800'
+                                  : 'bg-green-100 text-green-800'
+                              }`}>
+                                {filterType === 'followups' && prescription.nextFollowUp ? 'Follow-up' : 'Active'}
                               </span>
                               {prescription.nextFollowUp && new Date(prescription.nextFollowUp) < new Date() && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                <motion.span
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  transition={{ delay: index * 0.05 + 0.4, type: "spring" }}
+                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"
+                                >
                                   Overdue
-                                </span>
+                                </motion.span>
                               )}
                             </div>
                           </div>
@@ -529,9 +615,11 @@ const AllPrescriptions: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  </li>
+                    </motion.li>
                 ))}
-              </ul>
+                </motion.ul>
+              </motion.div>
+            </AnimatePresence>
             </div>
           )}
         </div>

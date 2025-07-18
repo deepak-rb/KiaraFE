@@ -2,6 +2,14 @@
   text-align: center;
   position: relative;
   overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.App::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
 }
 
 /* Professional Glass effect */
@@ -142,23 +150,28 @@
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* Professional scrollbar */
+/* Hide scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 0px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 10px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #667eea, #764ba2);
-  border-radius: 10px;
+  background: transparent;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #5a67d8, #6b46c1);
+/* Hide scrollbar for Firefox */
+html {
+  scrollbar-width: none;
+}
+
+/* Hide scrollbar for IE and Edge */
+body {
+  -ms-overflow-style: none;
 }
 
 /* Ripple effect for buttons */
@@ -218,5 +231,76 @@
   }
   100% {
     background-position: -200% 0;
+  }
+}
+
+/* Scroll End Shade Styles */
+.scroll-end-shade {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  z-index: 1000;
+  pointer-events: none;
+  transform-origin: bottom;
+}
+
+.scroll-end-gradient {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to top, rgba(239, 68, 68, 1), rgba(239, 68, 68, 0.8), rgba(239, 68, 68, 0.4), transparent);
+  box-shadow: 0 -5px 20px rgba(239, 68, 68, 0.6);
+  animation: pulseShade 1.5s ease-in-out infinite;
+}
+
+@keyframes pulseShade {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 -5px 20px rgba(239, 68, 68, 0.6);
+    transform: scaleY(1);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 -8px 25px rgba(239, 68, 68, 0.8);
+    transform: scaleY(1.1);
+  }
+}
+
+/* Alternative gradient themes for bottom shade */
+.scroll-end-gradient.gradient-orange {
+  background: linear-gradient(to top, rgba(249, 115, 22, 1), rgba(249, 115, 22, 0.8), rgba(249, 115, 22, 0.4), transparent);
+  box-shadow: 0 -5px 20px rgba(249, 115, 22, 0.6);
+}
+
+.scroll-end-gradient.gradient-purple {
+  background: linear-gradient(to top, rgba(139, 92, 246, 1), rgba(139, 92, 246, 0.8), rgba(139, 92, 246, 0.4), transparent);
+  box-shadow: 0 -5px 20px rgba(139, 92, 246, 0.6);
+}
+
+.scroll-end-gradient.gradient-blue {
+  background: linear-gradient(to top, rgba(59, 130, 246, 1), rgba(59, 130, 246, 0.8), rgba(59, 130, 246, 0.4), transparent);
+  box-shadow: 0 -5px 20px rgba(59, 130, 246, 0.6);
+}
+
+/* Enhanced shade for different screen sizes */
+@media (max-width: 640px) {
+  .scroll-end-shade {
+    height: 15px;
+  }
+  
+  .scroll-end-gradient {
+    background: linear-gradient(to top, rgba(239, 68, 68, 0.95), rgba(239, 68, 68, 0.7), rgba(239, 68, 68, 0.3), transparent);
+  }
+}
+
+@media (min-width: 1024px) {
+  .scroll-end-shade {
+    height: 25px;
+  }
+  
+  .scroll-end-gradient {
+    background: linear-gradient(to top, rgba(239, 68, 68, 1), rgba(239, 68, 68, 0.9), rgba(239, 68, 68, 0.6), rgba(239, 68, 68, 0.2), transparent);
+    box-shadow: 0 -8px 30px rgba(239, 68, 68, 0.7);
   }
 }

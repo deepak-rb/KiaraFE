@@ -29,6 +29,24 @@ const Settings: React.FC = () => {
   const [digitalSignature, setDigitalSignature] = useState<File | null>(null);
   const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
   const [deletingSignature, setDeletingSignature] = useState(false);
+  
+  // Danger Zone states
+  const [isDangerZoneUnlocked, setIsDangerZoneUnlocked] = useState(false);
+  const [dangerZoneAuth, setDangerZoneAuth] = useState({ username: '', password: '' });
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [newUser, setNewUser] = useState({ 
+    username: '', 
+    password: '', 
+    name: '', 
+    email: '', 
+    specialization: '', 
+    clinicName: '', 
+    clinicAddress: '', 
+    phone: '' 
+  });
+  const [passwordChange, setPasswordChange] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [editUserData, setEditUserData] = useState({ name: '', email: '', specialization: '', clinicName: '', clinicAddress: '', phone: '' });
 
   const profileInitialValues = {
     name: doctor?.name || '',
@@ -120,33 +138,147 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleDeleteSignature = async () => {
-    const result = await SweetAlert.confirmDelete('digital signature');
-    if (!result.isConfirmed) {
-      return;
-    }
-
-    setDeletingSignature(true);
-    setError('');
-
+  const handleSignatureDelete = async () => {
     try {
+      setDeletingSignature(true);
       await api.delete('/doctors/signature');
       
-      // Update doctor data to remove signature
-      if (doctor) {
-        const updatedDoctor: Doctor = { 
-          ...doctor, 
-          digitalSignature: undefined 
-        } as Doctor;
-        updateDoctor(updatedDoctor);
-      }
-
-      SweetAlert.success('Signature Deleted', 'Digital signature has been deleted successfully.');
+      // Update doctor context without signature
+      updateDoctor({ ...doctor, digitalSignature: undefined } as Doctor);
+      setSignaturePreview(null);
+      SweetAlert.success('Signature Deleted', 'Digital signature has been removed successfully');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error deleting signature');
       SweetAlert.error('Delete Failed', err.response?.data?.message || 'Error deleting signature');
     } finally {
       setDeletingSignature(false);
+    }
+  };
+
+  // Danger Zone functions
+  const authenticateDangerZone = async () => {
+    try {
+      setError('');
+      const response = await api.post('/auth/danger-zone-auth', {
+        username: dangerZoneAuth.username,
+        password: dangerZoneAuth.password
+      });
+      
+      if (response.data.success) {
+        setIsDangerZoneUnlocked(true);
+        await fetchAllUsers();
+        SweetAlert.success('Access Granted', 'Welcome to the Danger Zone');
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Authentication failed');
+      SweetAlert.error('Access Denied', err.response?.data?.message || 'Invalid credentials');
+    }
+  };
+
+  const fetchAllUsers = async () => {
+    try {
+      const response = await api.get('/auth/all-users');
+      setAllUsers(response.data.users);
+    } catch (err: any) {
+      console.error('Error fetching users:', err);
+    }
+  };
+
+  const createNewUser = async () => {
+    try {
+      setError('');
+      if (!newUser.username || !newUser.password || !newUser.name || !newUser.email) {
+        setError('Please fill in all required fields');
+        return;
+      }
+
+      await api.post('/auth/create-user', newUser);
+      setNewUser({ 
+        username: '', 
+        password: '', 
+        name: '', 
+        email: '', 
+        specialization: '', 
+        clinicName: '', 
+        clinicAddress: '', 
+        phone: '' 
+      });
+      await fetchAllUsers();
+      SweetAlert.success('User Created', 'New user has been created successfully');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Error creating user');
+      SweetAlert.error('Creation Failed', err.response?.data?.message || 'Error creating user');
+    }
+  };
+
+  const deleteUser = async (userId: string, username: string) => {
+    try {
+      const result = await SweetAlert.confirmDelete(`user "${username}"`);
+      if (result.isConfirmed) {
+        await api.delete(`/auth/delete-user/${userId}`);
+        await fetchAllUsers();
+        SweetAlert.success('User Deleted', 'User has been deleted successfully');
+      }
+    } catch (err: any) {
+      SweetAlert.error('Deletion Failed', err.response?.data?.message || 'Error deleting user');
+    }
+  };
+
+  const changePassword = async () => {
+    try {
+      setError('');
+      if (passwordChange.newPassword !== passwordChange.confirmPassword) {
+        setError('New passwords do not match');
+        return;
+      }
+
+      await api.post('/auth/change-password', {
+        currentPassword: passwordChange.currentPassword,
+        newPassword: passwordChange.newPassword
+      });
+
+      setPasswordChange({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      SweetAlert.success('Password Changed', 'Your password has been updated successfully');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Error changing password');
+      SweetAlert.error('Change Failed', err.response?.data?.message || 'Error changing password');
+    }
+  };
+
+  const startEditUser = (user: any) => {
+    setEditingUser(user);
+    setEditUserData({
+      name: user.name || '',
+      email: user.email || '',
+      specialization: user.specialization || '',
+      clinicName: user.clinicName || '',
+      clinicAddress: user.clinicAddress || '',
+      phone: user.phone || ''
+    });
+  };
+
+  const cancelEditUser = () => {
+    setEditingUser(null);
+    setEditUserData({ name: '', email: '', specialization: '', clinicName: '', clinicAddress: '', phone: '' });
+  };
+
+  const saveEditUser = async () => {
+    try {
+      setError('');
+      if (!editUserData.name || !editUserData.email) {
+        setError('Name and email are required');
+        return;
+      }
+
+      await api.put(`/auth/edit-user/${editingUser._id}`, editUserData);
+      
+      await fetchAllUsers();
+      setEditingUser(null);
+      setEditUserData({ name: '', email: '', specialization: '', clinicName: '', clinicAddress: '', phone: '' });
+      SweetAlert.success('User Updated', 'User details have been updated successfully');
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Error updating user');
+      SweetAlert.error('Update Failed', err.response?.data?.message || 'Error updating user');
     }
   };
 
@@ -180,6 +312,20 @@ const Settings: React.FC = () => {
                 }`}
               >
                 Digital Signature
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('danger');
+                  setIsDangerZoneUnlocked(false);
+                  setDangerZoneAuth({ username: '', password: '' });
+                }}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'danger'
+                    ? 'border-red-500 text-red-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                🔥 Danger Zone
               </button>
             </nav>
           </div>
@@ -288,7 +434,7 @@ const Settings: React.FC = () => {
                         </div>
                       </div>
                       <button
-                        onClick={handleDeleteSignature}
+                        onClick={handleSignatureDelete}
                         disabled={deletingSignature}
                         className="inline-flex items-center px-3 py-2 border border-red-300 shadow-sm text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
                       >
@@ -357,6 +503,445 @@ const Settings: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Danger Zone Tab */}
+          {activeTab === 'danger' && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-red-800 mb-2">⚠️ Danger Zone</h2>
+                <p className="text-red-600">
+                  This area contains sensitive administrative functions. Unauthorized access is prohibited.
+                </p>
+              </div>
+
+              {!isDangerZoneUnlocked ? (
+                <div className="bg-white rounded-lg p-6 shadow-sm">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Authentication Required</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Username
+                      </label>
+                      <input
+                        type="text"
+                        value={dangerZoneAuth.username}
+                        onChange={(e) => setDangerZoneAuth({...dangerZoneAuth, username: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                        placeholder="Enter your username"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Password
+                      </label>
+                      <input
+                        type="password"
+                        value={dangerZoneAuth.password}
+                        onChange={(e) => setDangerZoneAuth({...dangerZoneAuth, password: e.target.value})}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                        placeholder="Enter your password"
+                      />
+                    </div>
+                    <button
+                      onClick={authenticateDangerZone}
+                      className="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition duration-200"
+                    >
+                      Authenticate
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Current Admin Details */}
+                  <div className="bg-white rounded-lg p-6 shadow-sm">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Current Admin Details</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Username</label>
+                        <p className="mt-1 text-sm text-gray-900 bg-gray-50 p-2 rounded">{doctor?.username}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Name</label>
+                        <p className="mt-1 text-sm text-gray-900 bg-gray-50 p-2 rounded">{doctor?.name}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Email</label>
+                        <p className="mt-1 text-sm text-gray-900 bg-gray-50 p-2 rounded">{doctor?.email}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Specialization</label>
+                        <p className="mt-1 text-sm text-gray-900 bg-gray-50 p-2 rounded">{doctor?.specialization}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Password Change */}
+                  <div className="bg-white rounded-lg p-6 shadow-sm">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Change Password</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Current Password
+                        </label>
+                        <input
+                          type="password"
+                          value={passwordChange.currentPassword}
+                          onChange={(e) => setPasswordChange({...passwordChange, currentPassword: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          New Password
+                        </label>
+                        <input
+                          type="password"
+                          value={passwordChange.newPassword}
+                          onChange={(e) => setPasswordChange({...passwordChange, newPassword: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Confirm New Password
+                        </label>
+                        <input
+                          type="password"
+                          value={passwordChange.confirmPassword}
+                          onChange={(e) => setPasswordChange({...passwordChange, confirmPassword: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <button
+                        onClick={changePassword}
+                        className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200"
+                      >
+                        Change Password
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Create New User */}
+                  <div className="bg-white rounded-lg p-6 shadow-sm">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Create New User</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Username *
+                        </label>
+                        <input
+                          type="text"
+                          value={newUser.username}
+                          onChange={(e) => setNewUser({...newUser, username: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter username"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Password *
+                        </label>
+                        <input
+                          type="password"
+                          value={newUser.password}
+                          onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter password"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={newUser.name}
+                          onChange={(e) => setNewUser({...newUser, name: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter full name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Email *
+                        </label>
+                        <input
+                          type="email"
+                          value={newUser.email}
+                          onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter email"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Specialization
+                        </label>
+                        <input
+                          type="text"
+                          value={newUser.specialization}
+                          onChange={(e) => setNewUser({...newUser, specialization: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter specialization"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Clinic Name
+                        </label>
+                        <input
+                          type="text"
+                          value={newUser.clinicName}
+                          onChange={(e) => setNewUser({...newUser, clinicName: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter clinic name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Clinic Address
+                        </label>
+                        <input
+                          type="text"
+                          value={newUser.clinicAddress}
+                          onChange={(e) => setNewUser({...newUser, clinicAddress: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter clinic address"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Phone
+                        </label>
+                        <input
+                          type="text"
+                          value={newUser.phone}
+                          onChange={(e) => setNewUser({...newUser, phone: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter phone number"
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <button
+                        onClick={createNewUser}
+                        className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-200"
+                      >
+                        Create User
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* User Management */}
+                  <div className="bg-white rounded-lg p-6 shadow-sm">
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">User Management</h3>
+                    
+                    {/* Warning when only one user exists */}
+                    {allUsers.length <= 1 && (
+                      <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                        <div className="flex">
+                          <div className="flex-shrink-0">
+                            <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          <div className="ml-3">
+                            <h3 className="text-sm font-medium text-yellow-800">
+                              System Protection Active
+                            </h3>
+                            <div className="mt-2 text-sm text-yellow-700">
+                              <p>You are the last user in the system. User deletion is disabled to prevent system lockout.</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {allUsers.length > 0 ? (
+                      <div className="space-y-4">
+                        {/* User Table */}
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                              <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Username
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Name
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Email
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Specialization
+                                </th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  Actions
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                              {allUsers.map((user) => (
+                                <tr key={user._id}>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {user.username}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {user.name}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {user.email}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {user.specialization}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                                    <button
+                                      onClick={() => startEditUser(user)}
+                                      className="text-blue-600 hover:text-blue-900 transition duration-200"
+                                    >
+                                      Edit
+                                    </button>
+                                    {allUsers.length > 1 && user._id !== doctor?.id ? (
+                                      <button
+                                        onClick={() => deleteUser(user._id, user.username)}
+                                        className="text-red-600 hover:text-red-900 transition duration-200"
+                                      >
+                                        Delete
+                                      </button>
+                                    ) : (
+                                      <span 
+                                        className="text-gray-400 cursor-not-allowed"
+                                        title={allUsers.length <= 1 ? "Cannot delete the last user" : "Cannot delete your own account"}
+                                      >
+                                        Delete
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Edit User Modal/Form */}
+                        {editingUser && (
+                          <div className="border-t pt-6 mt-6">
+                            <h4 className="text-lg font-medium text-gray-900 mb-4">
+                              Edit User: {editingUser.username}
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Name *
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editUserData.name}
+                                  onChange={(e) => setEditUserData({...editUserData, name: e.target.value})}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="Enter full name"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Email *
+                                </label>
+                                <input
+                                  type="email"
+                                  value={editUserData.email}
+                                  onChange={(e) => setEditUserData({...editUserData, email: e.target.value})}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="Enter email"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Specialization
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editUserData.specialization}
+                                  onChange={(e) => setEditUserData({...editUserData, specialization: e.target.value})}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="Enter specialization"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Clinic Name
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editUserData.clinicName}
+                                  onChange={(e) => setEditUserData({...editUserData, clinicName: e.target.value})}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="Enter clinic name"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Clinic Address
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editUserData.clinicAddress}
+                                  onChange={(e) => setEditUserData({...editUserData, clinicAddress: e.target.value})}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="Enter clinic address"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Phone
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editUserData.phone}
+                                  onChange={(e) => setEditUserData({...editUserData, phone: e.target.value})}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="Enter phone number"
+                                />
+                              </div>
+                            </div>
+                            <div className="mt-4 flex space-x-3">
+                              <button
+                                onClick={saveEditUser}
+                                className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200"
+                              >
+                                Save Changes
+                              </button>
+                              <button
+                                onClick={cancelEditUser}
+                                className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition duration-200"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500">No users found.</p>
+                    )}
+                  </div>
+
+                  <div className="mt-6">
+                    <button
+                      onClick={() => {
+                        setIsDangerZoneUnlocked(false);
+                        setDangerZoneAuth({ username: '', password: '' });
+                      }}
+                      className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition duration-200"
+                    >
+                      Lock Danger Zone
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
