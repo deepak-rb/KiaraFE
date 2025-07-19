@@ -3,10 +3,9 @@ import { Formik, Form } from 'formik';
 import { useDropzone } from 'react-dropzone';
 import api from '../utils/api';
 import { SweetAlert } from '../utils/SweetAlert';
-import Navbar from '../components/Navbar';
 import { useAuth } from '../context/AuthContext';
 import { doctorProfileSchema } from '../utils/validationSchemas';
-import { FormInput, FormTextarea, FormSubmitButton, FormCancelButton } from '../components/FormComponents';
+import { FormInput, FormTextarea, FormSubmitButton } from '../components/FormComponents';
 
 // Import Doctor type from AuthContext
 type Doctor = {
@@ -15,6 +14,7 @@ type Doctor = {
   name: string;
   email: string;
   specialization: string;
+  licenseNumber?: string;
   clinicName: string;
   clinicAddress?: string;
   phone?: string;
@@ -22,7 +22,7 @@ type Doctor = {
 };
 
 const Settings: React.FC = () => {
-  const { doctor, updateDoctor } = useAuth();
+  const { doctor, updateDoctor, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -33,33 +33,29 @@ const Settings: React.FC = () => {
   // Danger Zone states
   const [isDangerZoneUnlocked, setIsDangerZoneUnlocked] = useState(false);
   const [dangerZoneAuth, setDangerZoneAuth] = useState({ username: '', password: '' });
-  const [allUsers, setAllUsers] = useState<any[]>([]);
-  const [newUser, setNewUser] = useState({ 
-    username: '', 
-    password: '', 
-    name: '', 
-    email: '', 
-    specialization: '', 
-    clinicName: '', 
-    clinicAddress: '', 
-    phone: '' 
-  });
   const [passwordChange, setPasswordChange] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
-  const [editingUser, setEditingUser] = useState<any>(null);
-  const [editUserData, setEditUserData] = useState({ name: '', email: '', specialization: '', clinicName: '', clinicAddress: '', phone: '' });
+  const [dataCounts, setDataCounts] = useState({ doctors: 0, patients: 0, prescriptions: 0, total: 0 });
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
 
-  const profileInitialValues = {
+  // Use useMemo to ensure profileInitialValues update when doctor data changes
+  const profileInitialValues = React.useMemo(() => ({
     name: doctor?.name || '',
     email: doctor?.email || '',
     specialization: doctor?.specialization || '',
+    licenseNumber: doctor?.licenseNumber || '',
     clinicName: doctor?.clinicName || '',
     clinicAddress: doctor?.clinicAddress || '',
     phone: doctor?.phone || ''
-  };
+  }), [doctor]);
 
   useEffect(() => {
-    // Any initialization code can go here
-  }, []);
+    // Debug logging to track doctor data loading
+    console.log('Settings - Doctor data:', doctor);
+    console.log('Settings - Loading state:', loading);
+    console.log('Settings - License Number:', doctor?.licenseNumber);
+  }, [doctor, loading]);
 
   // Helper function to get signature URL
   const getSignatureUrl = (): string | null => {
@@ -166,7 +162,7 @@ const Settings: React.FC = () => {
       
       if (response.data.success) {
         setIsDangerZoneUnlocked(true);
-        await fetchAllUsers();
+        await fetchDataCounts();
         SweetAlert.success('Access Granted', 'Welcome to the Danger Zone');
       }
     } catch (err: any) {
@@ -175,54 +171,98 @@ const Settings: React.FC = () => {
     }
   };
 
-  const fetchAllUsers = async () => {
+  const fetchDataCounts = async () => {
     try {
-      const response = await api.get('/auth/all-users');
-      setAllUsers(response.data.users);
+      const response = await api.get('/auth/data-counts');
+      setDataCounts(response.data);
     } catch (err: any) {
-      console.error('Error fetching users:', err);
+      console.error('Error fetching data counts:', err);
     }
   };
 
-  const createNewUser = async () => {
+  const handleExportData = async () => {
     try {
+      setIsExporting(true);
       setError('');
-      if (!newUser.username || !newUser.password || !newUser.name || !newUser.email) {
-        setError('Please fill in all required fields');
-        return;
-      }
-
-      await api.post('/auth/create-user', newUser);
-      setNewUser({ 
-        username: '', 
-        password: '', 
-        name: '', 
-        email: '', 
-        specialization: '', 
-        clinicName: '', 
-        clinicAddress: '', 
-        phone: '' 
+      
+      const response = await api.get('/auth/export-data', {
+        responseType: 'blob'
       });
-      await fetchAllUsers();
-      SweetAlert.success('User Created', 'New user has been created successfully');
+      
+      // Create a blob URL and trigger download
+      const blob = new Blob([response.data], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `clinic-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      SweetAlert.success('Export Successful', 'Data has been exported successfully');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Error creating user');
-      SweetAlert.error('Creation Failed', err.response?.data?.message || 'Error creating user');
+      setError(err.response?.data?.message || 'Error exporting data');
+      SweetAlert.error('Export Failed', err.response?.data?.message || 'Error exporting data');
+    } finally {
+      setIsExporting(false);
     }
   };
 
-  const deleteUser = async (userId: string, username: string) => {
+  const handleImportData = async () => {
+    if (!importFile) {
+      setError('Please select a file to import');
+      return;
+    }
+
     try {
-      const result = await SweetAlert.confirmDelete(`user "${username}"`);
+      setIsImporting(true);
+      setError('');
+
+      const fileContent = await importFile.text();
+      const importData = JSON.parse(fileContent);
+
+      if (!importData.data || !importData.data.doctors || !importData.data.patients || !importData.data.prescriptions) {
+        throw new Error('Invalid file format');
+      }
+
+      const result = await SweetAlert.confirm(
+        'Import Data',
+        'This will completely replace all existing data. Are you sure you want to continue?',
+        'Yes, import data',
+        'Cancel'
+      );
+
       if (result.isConfirmed) {
-        await api.delete(`/auth/delete-user/${userId}`);
-        await fetchAllUsers();
-        SweetAlert.success('User Deleted', 'User has been deleted successfully');
+        await api.post('/auth/import-data', { data: importData.data });
+        await fetchDataCounts();
+        setImportFile(null);
+        SweetAlert.success('Import Successful', 'Data has been imported successfully. Please refresh to see changes.');
       }
     } catch (err: any) {
-      SweetAlert.error('Deletion Failed', err.response?.data?.message || 'Error deleting user');
+      setError(err.response?.data?.message || 'Error importing data');
+      SweetAlert.error('Import Failed', err.response?.data?.message || 'Error importing data or invalid file format');
+    } finally {
+      setIsImporting(false);
     }
   };
+
+  const onImportFileDrop = (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (file && file.type === 'application/json') {
+      setImportFile(file);
+    } else {
+      setError('Please select a valid JSON file');
+    }
+  };
+
+  const { getRootProps: getImportProps, getInputProps: getImportInputProps, isDragActive: isImportDragActive } = useDropzone({
+    onDrop: onImportFileDrop,
+    accept: {
+      'application/json': ['.json']
+    },
+    maxFiles: 1
+  });
 
   const changePassword = async () => {
     try {
@@ -242,43 +282,6 @@ const Settings: React.FC = () => {
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error changing password');
       SweetAlert.error('Change Failed', err.response?.data?.message || 'Error changing password');
-    }
-  };
-
-  const startEditUser = (user: any) => {
-    setEditingUser(user);
-    setEditUserData({
-      name: user.name || '',
-      email: user.email || '',
-      specialization: user.specialization || '',
-      clinicName: user.clinicName || '',
-      clinicAddress: user.clinicAddress || '',
-      phone: user.phone || ''
-    });
-  };
-
-  const cancelEditUser = () => {
-    setEditingUser(null);
-    setEditUserData({ name: '', email: '', specialization: '', clinicName: '', clinicAddress: '', phone: '' });
-  };
-
-  const saveEditUser = async () => {
-    try {
-      setError('');
-      if (!editUserData.name || !editUserData.email) {
-        setError('Name and email are required');
-        return;
-      }
-
-      await api.put(`/auth/edit-user/${editingUser._id}`, editUserData);
-      
-      await fetchAllUsers();
-      setEditingUser(null);
-      setEditUserData({ name: '', email: '', specialization: '', clinicName: '', clinicAddress: '', phone: '' });
-      SweetAlert.success('User Updated', 'User details have been updated successfully');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Error updating user');
-      SweetAlert.error('Update Failed', err.response?.data?.message || 'Error updating user');
     }
   };
 
@@ -346,63 +349,75 @@ const Settings: React.FC = () => {
           {activeTab === 'profile' && (
             <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-xl font-semibold mb-6">Doctor Profile</h2>
-              <Formik
-                key={doctor?.id || 'no-doctor'}
-                initialValues={profileInitialValues}
-                validationSchema={doctorProfileSchema}
-                onSubmit={handleProfileSubmit}
-                enableReinitialize
-                validateOnChange={true}
-                validateOnBlur={true}
-              >
-                {({ isSubmitting, isValid }) => (
-                  <Form className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <FormInput
-                        name="name"
-                        label="Full Name"
+              {loading ? (
+                <div className="flex justify-center items-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-3 text-gray-600">Loading profile...</span>
+                </div>
+              ) : (
+                <Formik
+                  key={`doctor-${doctor?.id}-${doctor?.licenseNumber || 'no-license'}`}
+                  initialValues={profileInitialValues}
+                  validationSchema={doctorProfileSchema}
+                  onSubmit={handleProfileSubmit}
+                  enableReinitialize
+                  validateOnChange={true}
+                  validateOnBlur={true}
+                >
+                  {({ isSubmitting, isValid }) => (
+                    <Form className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <FormInput
+                          name="name"
+                          label="Full Name"
+                          required
+                        />
+                        <FormInput
+                          name="email"
+                          label="Email Address"
+                          type="email"
+                          required
+                        />
+                        <FormInput
+                          name="specialization"
+                          label="Specialization"
+                          required
+                        />
+                        <FormInput
+                          name="licenseNumber"
+                          label="License Number"
+                          required
+                        />
+                        <FormInput
+                          name="phone"
+                          label="Phone Number"
+                          type="tel"
+                          required
+                        />
+                        <FormInput
+                          name="clinicName"
+                          label="Clinic Name"
+                          required
+                        />
+                      </div>
+                      <FormTextarea
+                        name="clinicAddress"
+                        label="Clinic Address"
+                        rows={3}
                         required
                       />
-                      <FormInput
-                        name="email"
-                        label="Email Address"
-                        type="email"
-                        required
-                      />
-                      <FormInput
-                        name="specialization"
-                        label="Specialization"
-                        required
-                      />
-                      <FormInput
-                        name="phone"
-                        label="Phone Number"
-                        type="tel"
-                        required
-                      />
-                      <FormInput
-                        name="clinicName"
-                        label="Clinic Name"
-                        required
-                      />
-                    </div>
-                    <FormTextarea
-                      name="clinicAddress"
-                      label="Clinic Address"
-                      rows={3}
-                      required
-                    />
-                    <div className="flex justify-end">
-                      <FormSubmitButton
-                        isSubmitting={isSubmitting}
-                        isValid={isValid}
-                      >
-                        Update Profile
-                      </FormSubmitButton>
-                    </div>
-                  </Form>
-                )}
-              </Formik>
+                      <div className="flex justify-end">
+                        <FormSubmitButton
+                          isSubmitting={isSubmitting}
+                          isValid={isValid}
+                        >
+                          Update Profile
+                        </FormSubmitButton>
+                      </div>
+                    </Form>
+                  )}
+                </Formik>
+              )}
             </div>
           )}
 
@@ -574,6 +589,14 @@ const Settings: React.FC = () => {
                         <label className="block text-sm font-medium text-gray-700">Specialization</label>
                         <p className="mt-1 text-sm text-gray-900 bg-gray-50 p-2 rounded">{doctor?.specialization}</p>
                       </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">License Number</label>
+                        <p className="mt-1 text-sm text-gray-900 bg-gray-50 p-2 rounded">{doctor?.licenseNumber}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Phone</label>
+                        <p className="mt-1 text-sm text-gray-900 bg-gray-50 p-2 rounded">{doctor?.phone}</p>
+                      </div>
                     </div>
                   </div>
 
@@ -623,124 +646,75 @@ const Settings: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Create New User */}
+                  {/* Data Export/Import */}
                   <div className="bg-white rounded-lg p-6 shadow-sm">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Create New User</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Username *
-                        </label>
-                        <input
-                          type="text"
-                          value={newUser.username}
-                          onChange={(e) => setNewUser({...newUser, username: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Enter username"
-                        />
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Data Management</h3>
+                    
+                    {/* Data Statistics */}
+                    <div className="mb-6">
+                      <div className="flex justify-between items-center mb-3">
+                        <h4 className="text-md font-medium text-gray-900">Current Data Statistics</h4>
+                        <button
+                          onClick={fetchDataCounts}
+                          className="inline-flex items-center px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition duration-200"
+                        >
+                          <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Refresh
+                        </button>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Password *
-                        </label>
-                        <input
-                          type="password"
-                          value={newUser.password}
-                          onChange={(e) => setNewUser({...newUser, password: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Enter password"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Name *
-                        </label>
-                        <input
-                          type="text"
-                          value={newUser.name}
-                          onChange={(e) => setNewUser({...newUser, name: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Enter full name"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Email *
-                        </label>
-                        <input
-                          type="email"
-                          value={newUser.email}
-                          onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Enter email"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Specialization
-                        </label>
-                        <input
-                          type="text"
-                          value={newUser.specialization}
-                          onChange={(e) => setNewUser({...newUser, specialization: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Enter specialization"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Clinic Name
-                        </label>
-                        <input
-                          type="text"
-                          value={newUser.clinicName}
-                          onChange={(e) => setNewUser({...newUser, clinicName: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Enter clinic name"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Clinic Address
-                        </label>
-                        <input
-                          type="text"
-                          value={newUser.clinicAddress}
-                          onChange={(e) => setNewUser({...newUser, clinicAddress: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Enter clinic address"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Phone
-                        </label>
-                        <input
-                          type="text"
-                          value={newUser.phone}
-                          onChange={(e) => setNewUser({...newUser, phone: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Enter phone number"
-                        />
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-blue-50 p-3 rounded-lg text-center">
+                          <p className="text-2xl font-bold text-blue-600">{dataCounts.doctors}</p>
+                          <p className="text-sm text-blue-700">Doctors</p>
+                        </div>
+                        <div className="bg-green-50 p-3 rounded-lg text-center">
+                          <p className="text-2xl font-bold text-green-600">{dataCounts.patients}</p>
+                          <p className="text-sm text-green-700">Patients</p>
+                        </div>
+                        <div className="bg-purple-50 p-3 rounded-lg text-center">
+                          <p className="text-2xl font-bold text-purple-600">{dataCounts.prescriptions}</p>
+                          <p className="text-sm text-purple-700">Prescriptions</p>
+                        </div>
+                        <div className="bg-gray-50 p-3 rounded-lg text-center">
+                          <p className="text-2xl font-bold text-gray-600">{dataCounts.total}</p>
+                          <p className="text-sm text-gray-700">Total Records</p>
+                        </div>
                       </div>
                     </div>
-                    <div className="mt-4">
+
+                    {/* Export Section */}
+                    <div className="mb-6">
+                      <h4 className="text-md font-medium text-gray-900 mb-3">Export Data</h4>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Download a complete backup of all clinic data including doctors, patients, and prescriptions.
+                      </p>
                       <button
-                        onClick={createNewUser}
-                        className="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-200"
+                        onClick={handleExportData}
+                        disabled={isExporting}
+                        className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 transition duration-200"
                       >
-                        Create User
+                        {isExporting ? (
+                          <>
+                            <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+                            Exporting...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Export Data
+                          </>
+                        )}
                       </button>
                     </div>
-                  </div>
 
-                  {/* User Management */}
-                  <div className="bg-white rounded-lg p-6 shadow-sm">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">User Management</h3>
-                    
-                    {/* Warning when only one user exists */}
-                    {allUsers.length <= 1 && (
-                      <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                    {/* Import Section */}
+                    <div>
+                      <h4 className="text-md font-medium text-gray-900 mb-3">Import Data</h4>
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">
                         <div className="flex">
                           <div className="flex-shrink-0">
                             <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
@@ -749,184 +723,75 @@ const Settings: React.FC = () => {
                           </div>
                           <div className="ml-3">
                             <h3 className="text-sm font-medium text-yellow-800">
-                              System Protection Active
+                              Warning: Data will be completely replaced
                             </h3>
                             <div className="mt-2 text-sm text-yellow-700">
-                              <p>You are the last user in the system. User deletion is disabled to prevent system lockout.</p>
+                              <p>Importing data will permanently delete all existing records and replace them with the imported data.</p>
                             </div>
                           </div>
                         </div>
                       </div>
-                    )}
-
-                    {allUsers.length > 0 ? (
-                      <div className="space-y-4">
-                        {/* User Table */}
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Username
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Name
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Email
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Specialization
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                  Actions
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                              {allUsers.map((user) => (
-                                <tr key={user._id}>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {user.username}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {user.name}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {user.email}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {user.specialization}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                                    <button
-                                      onClick={() => startEditUser(user)}
-                                      className="text-blue-600 hover:text-blue-900 transition duration-200"
-                                    >
-                                      Edit
-                                    </button>
-                                    {allUsers.length > 1 && user._id !== doctor?.id ? (
-                                      <button
-                                        onClick={() => deleteUser(user._id, user.username)}
-                                        className="text-red-600 hover:text-red-900 transition duration-200"
-                                      >
-                                        Delete
-                                      </button>
-                                    ) : (
-                                      <span 
-                                        className="text-gray-400 cursor-not-allowed"
-                                        title={allUsers.length <= 1 ? "Cannot delete the last user" : "Cannot delete your own account"}
-                                      >
-                                        Delete
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        {/* Edit User Modal/Form */}
-                        {editingUser && (
-                          <div className="border-t pt-6 mt-6">
-                            <h4 className="text-lg font-medium text-gray-900 mb-4">
-                              Edit User: {editingUser.username}
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Name *
-                                </label>
-                                <input
-                                  type="text"
-                                  value={editUserData.name}
-                                  onChange={(e) => setEditUserData({...editUserData, name: e.target.value})}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  placeholder="Enter full name"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Email *
-                                </label>
-                                <input
-                                  type="email"
-                                  value={editUserData.email}
-                                  onChange={(e) => setEditUserData({...editUserData, email: e.target.value})}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  placeholder="Enter email"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Specialization
-                                </label>
-                                <input
-                                  type="text"
-                                  value={editUserData.specialization}
-                                  onChange={(e) => setEditUserData({...editUserData, specialization: e.target.value})}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  placeholder="Enter specialization"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Clinic Name
-                                </label>
-                                <input
-                                  type="text"
-                                  value={editUserData.clinicName}
-                                  onChange={(e) => setEditUserData({...editUserData, clinicName: e.target.value})}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  placeholder="Enter clinic name"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Clinic Address
-                                </label>
-                                <input
-                                  type="text"
-                                  value={editUserData.clinicAddress}
-                                  onChange={(e) => setEditUserData({...editUserData, clinicAddress: e.target.value})}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  placeholder="Enter clinic address"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Phone
-                                </label>
-                                <input
-                                  type="text"
-                                  value={editUserData.phone}
-                                  onChange={(e) => setEditUserData({...editUserData, phone: e.target.value})}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  placeholder="Enter phone number"
-                                />
-                              </div>
-                            </div>
-                            <div className="mt-4 flex space-x-3">
-                              <button
-                                onClick={saveEditUser}
-                                className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200"
-                              >
-                                Save Changes
-                              </button>
-                              <button
-                                onClick={cancelEditUser}
-                                className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition duration-200"
-                              >
-                                Cancel
-                              </button>
-                            </div>
+                      
+                      <div
+                        {...getImportProps()}
+                        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                          isImportDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        <input {...getImportInputProps()} />
+                        {importFile ? (
+                          <div className="space-y-3">
+                            <svg className="mx-auto h-8 w-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p className="text-sm font-medium text-gray-900">{importFile.name}</p>
+                            <p className="text-xs text-gray-500">Click or drag to replace file</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <svg className="mx-auto h-8 w-8 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                              <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            <p className="text-sm text-gray-600">
+                              {isImportDragActive ? 'Drop the JSON file here' : 'Click to upload or drag and drop a backup JSON file'}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Only JSON backup files are supported
+                            </p>
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <p className="text-gray-500">No users found.</p>
-                    )}
+                      
+                      {importFile && (
+                        <div className="mt-4 flex justify-end space-x-3">
+                          <button
+                            onClick={() => setImportFile(null)}
+                            className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition duration-200"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleImportData}
+                            disabled={isImporting}
+                            className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 transition duration-200"
+                          >
+                            {isImporting ? (
+                              <>
+                                <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+                                Importing...
+                              </>
+                            ) : (
+                              <>
+                                <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                                </svg>
+                                Import Data
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="mt-6">

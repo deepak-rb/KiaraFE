@@ -8,6 +8,7 @@ interface Doctor {
   name: string;
   email: string;
   specialization: string;
+  licenseNumber?: string;
   clinicName: string;
   clinicAddress?: string;
   phone?: string;

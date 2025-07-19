@@ -6,6 +6,7 @@ import api from '../utils/api';
 import { SweetAlert } from '../utils/SweetAlert';
 import { patientSchema } from '../utils/validationSchemas';
 import { FormInput, FormTextarea, FormSelect, FormSubmitButton, FormCancelButton } from '../components/FormComponents';
+import MaterialDatePicker from '../components/MaterialDatePicker';
 
 interface Patient {
   _id: string;
@@ -270,21 +271,17 @@ const EditPatient: React.FC = () => {
                     />
                     <Field name="dateOfBirth">
                       {({ field, form }: any) => (
-                        <div>
-                          <label className="form-label">Date of Birth <span className="text-red-500">*</span></label>
-                          <input
-                            {...field}
-                            type="date"
-                            className="form-input"
-                            onChange={(e) => {
-                              field.onChange(e);
-                              handleDateOfBirthChange(e.target.value, form.setFieldValue);
-                            }}
-                          />
-                          {form.errors.dateOfBirth && form.touched.dateOfBirth && (
-                            <div className="text-red-500 text-sm">{form.errors.dateOfBirth}</div>
-                          )}
-                        </div>
+                        <MaterialDatePicker
+                          label="Date of Birth"
+                          value={field.value}
+                          onChange={(date) => {
+                            form.setFieldValue('dateOfBirth', date);
+                            handleDateOfBirthChange(date, form.setFieldValue);
+                          }}
+                          onBlur={() => form.setFieldTouched('dateOfBirth', true)}
+                          error={form.errors.dateOfBirth && form.touched.dateOfBirth ? form.errors.dateOfBirth : ''}
+                          required
+                        />
                       )}
                     </Field>
                     <Field name="age">

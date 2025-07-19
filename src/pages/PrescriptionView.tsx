@@ -21,6 +21,7 @@ interface Doctor {
   _id: string;
   name: string;
   specialization: string;
+  licenseNumber?: string;
   clinicName: string;
   clinicAddress: string;
   phone: string;
@@ -185,6 +186,9 @@ const PrescriptionView: React.FC = () => {
             <div className="mb-6">
               <h3 className="text-lg font-semibold text-gray-900">Dr. {prescription.doctorId.name}</h3>
               <p className="text-gray-600">{prescription.doctorId.specialization}</p>
+              {prescription.doctorId.licenseNumber && (
+                <p className="text-gray-600">{prescription.doctorId.licenseNumber}</p>
+              )}
             </div>
 
             {/* Patient Information */}
@@ -256,6 +260,9 @@ const PrescriptionView: React.FC = () => {
                 <div className="border-t border-gray-400 w-48 mx-auto mb-2"></div>
                 <p className="text-sm font-medium">Dr. {prescription.doctorId.name}</p>
                 <p className="text-xs text-gray-600">{prescription.doctorId.specialization}</p>
+                {prescription.doctorId.licenseNumber && (
+                  <p className="text-xs text-gray-600">{prescription.doctorId.licenseNumber}</p>
+                )}
               </div>
             </div>
           </div>

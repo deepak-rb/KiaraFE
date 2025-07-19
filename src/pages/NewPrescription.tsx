@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Formik, Form, Field } from 'formik';
-import DatePicker from 'react-datepicker';
-import "react-datepicker/dist/react-datepicker.css";
 import { SweetAlert } from '../utils/SweetAlert';
 import api from '../utils/api';
 import Navbar from '../components/Navbar';
 import { prescriptionSchema } from '../utils/validationSchemas';
 import { FormTextarea, FormSelect, FormSubmitButton, FormCancelButton } from '../components/FormComponents';
+import MaterialDatePicker from '../components/MaterialDatePicker';
+import dayjs from 'dayjs';
 
 interface Patient {
   _id: string;
@@ -33,7 +33,7 @@ const NewPrescription: React.FC = () => {
     patientId: '',
     symptoms: '',
     prescription: '',
-    nextFollowUp: null as Date | null,
+    nextFollowUp: '',
     notes: ''
   };
 
@@ -137,7 +137,7 @@ const NewPrescription: React.FC = () => {
         patientId: values.patientId,
         symptoms: values.symptoms,
         prescription: values.prescription,
-        nextFollowUp: values.nextFollowUp ? values.nextFollowUp.toISOString() : null,
+        nextFollowUp: values.nextFollowUp ? new Date(values.nextFollowUp).toISOString() : null,
         notes: values.notes
       };
 
@@ -274,17 +274,16 @@ const NewPrescription: React.FC = () => {
                     
                     <Field name="nextFollowUp">
                       {({ field, form }: any) => (
-                        <div>
-                          <label className="form-label">Next Follow-Up Date</label>
-                          <DatePicker
-                            selected={field.value}
-                            onChange={(date) => form.setFieldValue('nextFollowUp', date)}
-                            className="form-input"
-                            placeholderText="Select follow-up date"
-                            dateFormat="dd/MM/yyyy"
-                            minDate={new Date()}
-                          />
-                        </div>
+                        <MaterialDatePicker
+                          label="Next Follow-Up Date"
+                          value={field.value}
+                          onChange={(date) => form.setFieldValue('nextFollowUp', date)}
+                          onBlur={() => form.setFieldTouched('nextFollowUp', true)}
+                          error={form.errors.nextFollowUp && form.touched.nextFollowUp ? form.errors.nextFollowUp : ''}
+                          minDate={dayjs()}
+                          maxDate={dayjs().add(1, 'year')}
+                          placeholder="Select follow-up date"
+                        />
                       )}
                     </Field>
                     

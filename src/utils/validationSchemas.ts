@@ -134,6 +134,10 @@ export const doctorProfileSchema = Yup.object({
     .min(2, 'Specialization must be at least 2 characters')
     .max(50, 'Specialization cannot exceed 50 characters')
     .matches(/^[a-zA-Z\s]*$/, 'Specialization can only contain letters and spaces'),
+  licenseNumber: Yup.string()
+    .required('License number is required')
+    .min(3, 'License number must be at least 3 characters')
+    .max(50, 'License number cannot exceed 50 characters'),
   clinicName: Yup.string()
     .required('Clinic name is required')
     .min(2, 'Clinic name must be at least 2 characters')

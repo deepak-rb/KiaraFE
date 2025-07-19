@@ -6,6 +6,8 @@ import api from '../utils/api';
 import { SweetAlert } from '../utils/SweetAlert';
 import { patientSchema } from '../utils/validationSchemas';
 import { FormInput, FormTextarea, FormSelect, FormSubmitButton, FormCancelButton } from '../components/FormComponents';
+import MaterialDatePicker from '../components/MaterialDatePicker';
+import dayjs from 'dayjs';
 
 const AddPatient: React.FC = () => {
   const navigate = useNavigate();
@@ -158,7 +160,7 @@ const AddPatient: React.FC = () => {
                     <FormInput
                       name="patientId"
                       label="Patient ID (optional)"
-                      placeholder="Leave empty for auto-generation"
+                      placeholder="Leave empty for auto-generation (starts from P1000)"
                     />
                     <FormInput
                       name="name"
@@ -167,21 +169,20 @@ const AddPatient: React.FC = () => {
                     />
                     <Field name="dateOfBirth">
                       {({ field, form }: any) => (
-                        <div>
-                          <label className="form-label">Date of Birth <span className="text-red-500">*</span></label>
-                          <input
-                            {...field}
-                            type="date"
-                            className="form-input"
-                            onChange={(e) => {
-                              field.onChange(e);
-                              handleDateOfBirthChange(e.target.value, form.setFieldValue);
-                            }}
-                          />
-                          {form.errors.dateOfBirth && form.touched.dateOfBirth && (
-                            <div className="text-red-500 text-sm">{form.errors.dateOfBirth}</div>
-                          )}
-                        </div>
+                        <MaterialDatePicker
+                          label="Date of Birth"
+                          value={field.value}
+                          onChange={(date) => {
+                            form.setFieldValue('dateOfBirth', date);
+                            handleDateOfBirthChange(date, form.setFieldValue);
+                          }}
+                          onBlur={() => form.setFieldTouched('dateOfBirth', true)}
+                          error={form.errors.dateOfBirth && form.touched.dateOfBirth ? form.errors.dateOfBirth : ''}
+                          required
+                          maxDate={dayjs()}
+                          minDate={dayjs('1900-01-01')}
+                          placeholder="Select date of birth"
+                        />
                       )}
                     </Field>
                     <Field name="age">
