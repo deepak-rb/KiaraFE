@@ -13,6 +13,7 @@ interface Doctor {
   clinicAddress?: string;
   phone?: string;
   digitalSignature?: string;
+  requirePasswordChange?: boolean;
 }
 
 interface AuthState {

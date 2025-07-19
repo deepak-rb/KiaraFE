@@ -16,6 +16,7 @@ import EditPrescription from './pages/EditPrescription';
 import PrescriptionView from './pages/PrescriptionView';
 import AllPrescriptions from './pages/AllPrescriptions';
 import Settings from './pages/Settings';
+import ForcePasswordChange from './pages/ForcePasswordChange';
 import './App.css';
 
 // Component to scroll to top when route changes
@@ -34,7 +35,7 @@ const ScrollToTop: React.FC = () => {
 };
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, doctor, loading } = useAuth();
   
   if (loading) {
     return (
@@ -46,15 +47,22 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
       </div>
     );
   }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
+
+  // Check if user needs to change password
+  if (doctor?.requirePasswordChange) {
+    return <Navigate to="/force-password-change" />;
+  }
   
-  return isAuthenticated ? (
+  return (
     <Layout>
       <AnimatedRoute>
         {children}
       </AnimatedRoute>
     </Layout>
-  ) : (
-    <Navigate to="/login" />
   );
 };
 
@@ -136,6 +144,11 @@ const AnimatedRoutes = () => {
           <ProtectedRoute>
             <Settings />
           </ProtectedRoute>
+        } />
+        <Route path="/force-password-change" element={
+          <AnimatedRoute>
+            <ForcePasswordChange />
+          </AnimatedRoute>
         } />
         <Route path="/" element={<Navigate to="/dashboard" />} />
       </Routes>
