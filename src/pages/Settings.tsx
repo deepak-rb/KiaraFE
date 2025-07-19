@@ -234,14 +234,60 @@ const Settings: React.FC = () => {
       );
 
       if (result.isConfirmed) {
-        await api.post('/auth/import-data', { data: importData.data });
+        // Show loading alert
+        SweetAlert.loading('Importing Data', 'Please wait while we verify and import your data...');
+        
+        const response = await api.post('/auth/import-data', { data: importData.data });
+        
         await fetchDataCounts();
         setImportFile(null);
-        SweetAlert.success('Import Successful', 'Data has been imported successfully. Please refresh to see changes.');
+        
+        // Check if rollback occurred
+        if (response.data.rollback) {
+          SweetAlert.error('Import Failed with Rollback', 
+            'The import failed but your original data has been restored successfully.');
+        } else if (response.data.critical) {
+          SweetAlert.error('Critical Import Error', 
+            'Import failed and rollback also failed. Please check your database state.');
+        } else {
+          // Success message with verification details
+          const verified = response.data.verified;
+          const imported = response.data.imported;
+          
+          let successMessage = `Data has been imported successfully!\n\n` +
+            `Imported: ${imported.doctors} doctors, ${imported.patients} patients, ${imported.prescriptions} prescriptions\n` +
+            `Verified: ${verified.doctors} doctors, ${verified.patients} patients, ${verified.prescriptions} prescriptions in database\n\n` +
+            `Please refresh to see changes.`;
+          
+          if (response.data.warning) {
+            successMessage += `\n\n⚠️ IMPORTANT: ${response.data.warning}`;
+          }
+          
+          SweetAlert.success('Import Successful', successMessage);
+        }
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Error importing data');
-      SweetAlert.error('Import Failed', err.response?.data?.message || 'Error importing data or invalid file format');
+      console.error('Import error:', err);
+      
+      let errorMessage = 'Error importing data';
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+      
+      // Provide specific error messages based on error type
+      if (errorMessage.includes('validation failed')) {
+        SweetAlert.error('Data Validation Failed', 
+          'The imported data does not match the expected format. Please check your backup file.');
+      } else if (errorMessage.includes('rollback')) {
+        SweetAlert.warning('Import Failed but Data Restored', 
+          'The import failed but your original data has been safely restored.');
+      } else {
+        SweetAlert.error('Import Failed', errorMessage);
+      }
     } finally {
       setIsImporting(false);
     }
