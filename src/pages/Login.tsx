@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import { loginSchema } from '../utils/validationSchemas';
 import { FormInput, FormSubmitButton } from '../components/FormComponents';
 import { SweetAlert } from '../utils/SweetAlert';
-import DebugInfo from '../components/DebugInfo';
 
 const Login: React.FC = () => {
   const { login } = useAuth();
@@ -119,7 +118,6 @@ const Login: React.FC = () => {
           </Formik>
         </motion.div>
       </motion.div>
-      <DebugInfo />
     </div>
   );
 };
