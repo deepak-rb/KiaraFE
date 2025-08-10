@@ -36,6 +36,15 @@ interface Prescription {
   createdAt: string;
 }
 
+interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalPrescriptions: number;
+  limit: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
 const AllPrescriptions: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -49,10 +58,39 @@ const AllPrescriptions: React.FC = () => {
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
   const [isFilterTransitioning, setIsFilterTransitioning] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [allSearchResults, setAllSearchResults] = useState<Prescription[]>([]);
+  const [isSearchActive, setIsSearchActive] = useState(false);
 
   useEffect(() => {
-    fetchAllPrescriptions();
-  }, []);
+    if (!isSearchActive) {
+      fetchAllPrescriptions(currentPage);
+    }
+  }, [currentPage, itemsPerPage, filterType]); // Added filterType to dependencies
+
+  // Handle search result pagination when currentPage changes during search
+  useEffect(() => {
+    if (isSearchActive && allSearchResults.length > 0) {
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const pageResults = allSearchResults.slice(startIndex, endIndex);
+      setFilteredPrescriptions(pageResults);
+      
+      // Update pagination info
+      const totalResults = allSearchResults.length;
+      const totalPages = Math.ceil(totalResults / itemsPerPage);
+      setPagination({
+        currentPage: currentPage,
+        totalPages: totalPages,
+        totalPrescriptions: totalResults,
+        limit: itemsPerPage,
+        hasNextPage: currentPage < totalPages,
+        hasPrevPage: currentPage > 1
+      });
+    }
+  }, [currentPage, itemsPerPage, allSearchResults, isSearchActive]);
 
   useEffect(() => {
     // Check for filter parameter in URL
@@ -64,15 +102,7 @@ const AllPrescriptions: React.FC = () => {
     }
   }, [searchParams]);
 
-  useEffect(() => {
-    // Apply filter when filterType or prescriptions change
-    if (filterType === 'followups') {
-      const followUpPrescriptions = prescriptions.filter(prescription => prescription.nextFollowUp);
-      setFilteredPrescriptions(followUpPrescriptions);
-    } else {
-      setFilteredPrescriptions(prescriptions);
-    }
-  }, [filterType, prescriptions]);
+  // Removed client-side filtering effect since backend now handles filtering
 
   useEffect(() => {
     return () => {
@@ -110,12 +140,16 @@ const AllPrescriptions: React.FC = () => {
     };
   }, [searchQuery]);
 
-  const fetchAllPrescriptions = async () => {
+  const fetchAllPrescriptions = async (page: number = 1) => {
     try {
       setLoading(true);
-      const response = await api.get('/prescriptions');
+      // Add filter parameter to API call based on current filter type
+      const filterParam = filterType === 'followups' ? '&filter=followups' : '';
+      const response = await api.get(`/prescriptions?page=${page}&limit=${itemsPerPage}${filterParam}`);
       setPrescriptions(response.data.prescriptions);
       setFilteredPrescriptions(response.data.prescriptions);
+      setPagination(response.data.pagination);
+      setCurrentPage(page);
     } catch (err: any) {
       setError('No Prescription found');
     } finally {
@@ -124,30 +158,67 @@ const AllPrescriptions: React.FC = () => {
   };
 
   const performSearch = async (query: string) => {
+    console.log('🔍 Performing search for:', query);
+    
     if (query.trim() === '') {
-      // Apply filter type when clearing search
-      if (filterType === 'followups') {
-        const followUpPrescriptions = prescriptions.filter(prescription => prescription.nextFollowUp);
-        setFilteredPrescriptions(followUpPrescriptions);
-      } else {
-        setFilteredPrescriptions(prescriptions);
-      }
+      // Reset search state and go back to normal pagination
+      setIsSearchActive(false);
+      setAllSearchResults([]);
+      setCurrentPage(1);
+      fetchAllPrescriptions(1);
       return;
     }
 
     setIsSearching(true);
+    setIsSearchActive(true);
+    
     try {
+      console.log('🌐 Making API call to:', `/prescriptions/search/${encodeURIComponent(query)}`);
       const response = await api.get(`/prescriptions/search/${encodeURIComponent(query)}`);
-      let searchResults = response.data.prescriptions;
+      console.log('📊 Search response:', response.data);
       
-      // Apply filter type to search results
+      let searchResults = response.data.prescriptions;
+      console.log('📋 Raw search results count:', searchResults.length);
+      
+      // Apply filter type to search results (client-side for search since backend search doesn't have filter param yet)
       if (filterType === 'followups') {
         searchResults = searchResults.filter((prescription: Prescription) => prescription.nextFollowUp);
+        console.log('📋 After follow-up filter:', searchResults.length);
       }
       
-      setFilteredPrescriptions(searchResults);
+      // Store all search results
+      setAllSearchResults(searchResults);
+      
+      // Apply pagination to search results
+      const totalResults = searchResults.length;
+      const totalPages = Math.ceil(totalResults / itemsPerPage);
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const currentPageResults = searchResults.slice(startIndex, endIndex);
+      
+      console.log('📄 Pagination details:', {
+        totalResults,
+        totalPages,
+        currentPage,
+        itemsPerPage,
+        startIndex,
+        endIndex,
+        currentPageResults: currentPageResults.length
+      });
+      
+      setFilteredPrescriptions(currentPageResults);
+      setPagination({
+        currentPage: currentPage,
+        totalPages: totalPages,
+        totalPrescriptions: totalResults,
+        limit: itemsPerPage,
+        hasNextPage: currentPage < totalPages,
+        hasPrevPage: currentPage > 1
+      });
     } catch (err: any) {
-      console.error('Search error:', err);
+      console.error('❌ Search API error:', err);
+      console.log('🔄 Falling back to local search');
+      
       // If search fails, fall back to local filtering
       let localFiltered = prescriptions.filter(prescription => {
         const patientPhone = prescription.patientId?.phone || '';
@@ -159,12 +230,32 @@ const AllPrescriptions: React.FC = () => {
         );
       });
       
+      console.log('📋 Local search results:', localFiltered.length);
+      
       // Apply filter type to local search results
       if (filterType === 'followups') {
         localFiltered = localFiltered.filter(prescription => prescription.nextFollowUp);
       }
       
-      setFilteredPrescriptions(localFiltered);
+      // Store all search results
+      setAllSearchResults(localFiltered);
+      
+      // Apply local pagination
+      const totalResults = localFiltered.length;
+      const totalPages = Math.ceil(totalResults / itemsPerPage);
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const currentPageResults = localFiltered.slice(startIndex, endIndex);
+      
+      setFilteredPrescriptions(currentPageResults);
+      setPagination({
+        currentPage: currentPage,
+        totalPages: totalPages,
+        totalPrescriptions: totalResults,
+        limit: itemsPerPage,
+        hasNextPage: currentPage < totalPages,
+        hasPrevPage: currentPage > 1
+      });
     } finally {
       setIsSearching(false);
     }
@@ -178,6 +269,11 @@ const AllPrescriptions: React.FC = () => {
       clearTimeout(searchTimeout);
     }
     
+    // Reset to first page when starting a new search
+    if (query.trim() && currentPage !== 1) {
+      setCurrentPage(1);
+    }
+    
     // Set new timeout for debounced search
     if (query.trim()) {
       const timeout = setTimeout(() => {
@@ -185,19 +281,20 @@ const AllPrescriptions: React.FC = () => {
       }, 300); // 300ms debounce
       setSearchTimeout(timeout);
     } else {
-      // Apply filter type when clearing search
-      if (filterType === 'followups') {
-        const followUpPrescriptions = prescriptions.filter(prescription => prescription.nextFollowUp);
-        setFilteredPrescriptions(followUpPrescriptions);
-      } else {
-        setFilteredPrescriptions(prescriptions);
-      }
+      // Clear search and reset pagination
+      setIsSearchActive(false);
+      setAllSearchResults([]);
+      setCurrentPage(1);
+      fetchAllPrescriptions(1);
     }
   };
 
   const clearSearch = () => {
     setSearchQuery('');
-    setFilteredPrescriptions(prescriptions);
+    setCurrentPage(1);
+    setIsSearchActive(false);
+    setAllSearchResults([]);
+    fetchAllPrescriptions(1);
   };
 
   const highlightSearchTerm = (text: string, searchTerm: string) => {
@@ -220,6 +317,32 @@ const AllPrescriptions: React.FC = () => {
 
   const handleEditPrescription = (prescriptionId: string) => {
     navigate(`/prescriptions/edit/${prescriptionId}`);
+  };
+
+  const handleCreateFollowUp = (prescription: Prescription) => {
+    // Navigate to new prescription page with patient pre-selected
+    const patientData = {
+      patientObjectId: prescription.patientId._id, // Keep object ID for API calls
+      patientId: prescription.patientId.patientId, // Human-readable patient ID
+      patientName: prescription.patientName,
+      patientAge: prescription.patientAge,
+      patientPhone: prescription.patientId.phone,
+      followUp: true,
+      originalPrescriptionId: prescription._id,
+      originalPrescriptionCode: prescription.prescriptionId // Human-readable prescription ID
+    };
+    
+    const queryParams = new URLSearchParams();
+    queryParams.set('patientObjectId', patientData.patientObjectId); // For API calls
+    queryParams.set('patientId', patientData.patientId); // Human-readable ID for display
+    queryParams.set('patientName', patientData.patientName);
+    queryParams.set('patientAge', patientData.patientAge.toString());
+    queryParams.set('patientPhone', patientData.patientPhone || '');
+    queryParams.set('followUp', 'true');
+    queryParams.set('originalPrescriptionId', patientData.originalPrescriptionId);
+    queryParams.set('originalPrescriptionCode', patientData.originalPrescriptionCode);
+    
+    navigate(`/prescriptions/new?${queryParams.toString()}`);
   };
 
   const handleDeletePrescription = async (prescriptionId: string, prescriptionCode: string) => {
@@ -258,6 +381,71 @@ const AllPrescriptions: React.FC = () => {
     });
   };
 
+  // Pagination functions
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= (pagination?.totalPages || 1)) {
+      setCurrentPage(page);
+      
+      // If search is active, paginate through search results
+      if (isSearchActive && allSearchResults.length > 0) {
+        const startIndex = (page - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const pageResults = allSearchResults.slice(startIndex, endIndex);
+        setFilteredPrescriptions(pageResults);
+        
+        // Update pagination info
+        if (pagination) {
+          setPagination({
+            ...pagination,
+            currentPage: page,
+            hasNextPage: page < pagination.totalPages,
+            hasPrevPage: page > 1
+          });
+        }
+      }
+      // If no search is active, fetch from server
+      else if (!isSearchActive) {
+        fetchAllPrescriptions(page);
+      }
+    }
+  };
+
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // Reset to first page when changing items per page
+  };
+
+  const getPaginationNumbers = () => {
+    if (!pagination) return [];
+    
+    const { currentPage, totalPages } = pagination;
+    const delta = 2; // Number of pages to show on each side of current page
+    const range = [];
+    const rangeWithDots = [];
+
+    for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
+      range.push(i);
+    }
+
+    if (currentPage - delta > 2) {
+      rangeWithDots.push(1, '...');
+    } else {
+      rangeWithDots.push(1);
+    }
+
+    rangeWithDots.push(...range);
+
+    if (currentPage + delta < totalPages - 1) {
+      rangeWithDots.push('...', totalPages);
+    } else {
+      if (totalPages > 1) {
+        rangeWithDots.push(totalPages);
+      }
+    }
+
+    return rangeWithDots;
+  };
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
@@ -276,15 +464,14 @@ const AllPrescriptions: React.FC = () => {
             <h1 className="text-3xl font-bold text-gray-900">
                 {filterType === 'followups' ? 'Follow-up Prescriptions' : 'All Prescriptions'}
               </h1>
-              {filterType === 'followups' && (
-                <p className="text-gray-600 mt-1">Prescriptions with scheduled follow-up dates</p>
-              )}
+        
             </div>
             <div className="flex space-x-4">
               <motion.button
                 onClick={() => {
                   setIsFilterTransitioning(true);
                   setTimeout(() => {
+                    setCurrentPage(1); // Reset to first page when changing filter
                     setFilterType(filterType === 'followups' ? 'all' : 'followups');
                     navigate(filterType === 'followups' ? '/prescriptions/all' : '/prescriptions/all?filter=followups');
                     setTimeout(() => setIsFilterTransitioning(false), 100);
@@ -315,19 +502,14 @@ const AllPrescriptions: React.FC = () => {
             </div>
           </div>
 
-          {/* Search Bar */}
+          {/* Search Bar - Professional UI */}
           <div className="mb-6">
-            <div className="relative max-w-lg">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
+            <div className="relative max-w-2xl mx-auto">
               <input
                 id="prescription-search"
                 type="text"
-                placeholder="Search by prescription ID, patient name, or mobile number... (Ctrl+F to focus, Esc to clear)"
-                className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                placeholder="Search prescriptions by ID, patient name, mobile, or symptoms..."
+                className="block w-full pl-12 pr-12 py-4 text-base border-2 border-gray-200 rounded-xl bg-gray-50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 focus:bg-white transition-all duration-200 shadow-sm"
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -339,67 +521,65 @@ const AllPrescriptions: React.FC = () => {
                 aria-label="Search prescriptions"
                 aria-describedby="search-description"
               />
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
               {searchQuery && (
                 <button
                   onClick={clearSearch}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center hover:bg-gray-100 rounded-r-lg transition-colors"
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
                   title="Clear search"
                 >
-                  <svg className="h-5 w-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               )}
             </div>
-            {isSearching && (
-              <div className="mt-2 text-sm text-blue-600 flex items-center">
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Searching...
-              </div>
-            )}
-            <div className="mt-2 flex items-center justify-between">
-              <div className="text-sm text-gray-600">
-                {searchQuery && !isSearching ? (
-                  <>
-                    <span className="font-medium">{filteredPrescriptions.length}</span> prescription{filteredPrescriptions.length !== 1 ? 's' : ''} found for "<span className="font-medium">{searchQuery}</span>"
-                    {filteredPrescriptions.length === 0 && (
-                      <span className="ml-2 text-gray-500">
-                        • Try a different search term or 
-                        <button onClick={clearSearch} className="text-blue-600 hover:text-blue-800 ml-1">clear search</button>
-                      </span>
-                    )}
-                  </>
+            {/* Search status and info */}
+            <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <motion.div
+                className="flex items-center space-x-3"
+              >
+                {isSearching ? (
+                  <span className="flex items-center text-green-600 text-sm font-medium">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Searching...
+                  </span>
                 ) : (
-                  <>
-                    {filterType === 'followups' ? (
-                      <>
-                        Showing <span className="font-medium">{filteredPrescriptions.length}</span> follow-up prescriptions
-                        <span className="text-orange-600 ml-2">• Follow-ups only</span>
-                      </>
-                    ) : (
-                      <>
-                        Showing <span className="font-medium">{filteredPrescriptions.length}</span> of <span className="font-medium">{prescriptions.length}</span> total prescriptions
-                      </>
+                  <span className="flex items-center text-gray-700 text-sm">
+                    <motion.span
+                      key={searchQuery ? `results-${filteredPrescriptions.length}` : filterType === 'followups' ? 'followups' : 'total'}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 8 }}
+                      transition={{ duration: 0.25, ease: 'easeInOut' }}
+                      className={searchQuery ? 'bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium' : filterType === 'followups' ? 'text-orange-600' : 'text-gray-700'}
+                      style={{ display: 'inline-block' }}
+                    >
+                      {searchQuery
+                        ? `${filteredPrescriptions.length} result${filteredPrescriptions.length !== 1 ? 's' : ''}`
+                        : filterType === 'followups'
+                          ? `Showing ${filteredPrescriptions.length} follow-up prescription${filteredPrescriptions.length !== 1 ? 's' : ''}`
+                          : `Showing ${filteredPrescriptions.length} of ${prescriptions.length} total prescriptions`}
+                    </motion.span>
+                    {searchQuery && (
+                      <span className="ml-2">for "<span className="font-semibold">{searchQuery}</span>"</span>
                     )}
-                  </>
+                    {searchQuery && filteredPrescriptions.length === 0 && (
+                      <button onClick={clearSearch} className="ml-3 text-green-600 hover:text-green-800 text-sm font-medium transition-colors">Clear search</button>
+                    )}
+                    {filterType === 'followups' && !searchQuery && (
+                      <span className="ml-2">• Follow-ups only</span>
+                    )}
+                  </span>
                 )}
-              </div>
-              <div className={`text-sm font-medium px-3 py-1 rounded-full ${
-                filterType === 'followups' 
-                  ? 'text-orange-600 bg-orange-50' 
-                  : 'text-green-600 bg-green-50'
-              }`}>
-                {filterType === 'followups' 
-                  ? `Follow-ups: ${prescriptions.filter(p => p.nextFollowUp).length}` 
-                  : `Total: ${prescriptions.length} prescriptions`
-                }
-              </div>
-            </div>
-            <div className="mt-2 text-xs text-gray-400">
-              Search by prescription ID, patient name, mobile number, or symptoms
+              </motion.div>
             </div>
           </div>
 
@@ -458,168 +638,231 @@ const AllPrescriptions: React.FC = () => {
                 </motion.div>
               )}
               <AnimatePresence mode="wait">
-              <motion.div
-                key={filterType}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ 
-                  duration: 0.3,
-                  ease: "easeInOut"
-                }}
-                className="bg-white shadow overflow-hidden sm:rounded-md"
-              >
-                <motion.ul 
-                  className="divide-y divide-gray-200"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.1, duration: 0.3 }}
+                <motion.div
+                  key={filterType}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ 
+                    duration: 0.3,
+                    ease: "easeInOut"
+                  }}
+                  className="bg-white shadow overflow-hidden sm:rounded-lg"
                 >
-                  {filteredPrescriptions.map((prescription, index) => (
-                    <motion.li
-                      key={prescription._id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ 
-                        delay: index * 0.05,
-                        duration: 0.3,
-                        ease: "easeOut"
-                      }}
-                    >
-                    <div className={`px-4 py-6 sm:px-6 transition-all duration-300 ${
-                      filterType === 'followups' && prescription.nextFollowUp
-                        ? 'bg-gradient-to-r from-orange-50 to-yellow-50 border-l-4 border-orange-400 hover:from-orange-100 hover:to-yellow-100'
-                        : 'hover:bg-gray-50'
-                    }`}>
-                      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                        {/* Left section - Prescription details */}
-                        <div className="flex-1 min-w-0 space-y-3">
-                          {/* Prescription ID and Status */}
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  {/* Table Header */}
+                  <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
+                    <div className="grid grid-cols-12 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <div className="col-span-2">Prescription ID</div>
+                      <div className="col-span-2">Patient</div>
+                      <div className="col-span-2">Age/Phone</div>
+                      <div className="col-span-3">Symptoms</div>
+                      <div className="col-span-2">Date/Follow-up</div>
+                      <div className="col-span-1">Actions</div>
+                    </div>
+                  </div>
+
+                  {/* Table Body */}
+                  <div className="divide-y divide-gray-200">
+                    {filteredPrescriptions.map((prescription, index) => (
+                      <motion.div
+                        key={prescription._id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ 
+                          delay: index * 0.03,
+                          duration: 0.3,
+                          ease: "easeOut"
+                        }}
+                        className={`px-6 py-4 transition-all duration-200 ${
+                          filterType === 'followups' && prescription.nextFollowUp
+                            ? 'bg-gradient-to-r from-orange-50 to-yellow-50 border-l-4 border-orange-400 hover:from-orange-100 hover:to-yellow-100'
+                            : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="grid grid-cols-12 gap-4 items-center">
+                          {/* Prescription ID */}
+                          <div className="col-span-2">
                             <div className="flex items-center gap-2">
-                              <h3 className="text-lg font-semibold text-blue-600 truncate">
+                              <span className="text-sm font-semibold text-green-600 truncate">
                                 {highlightSearchTerm(prescription.prescriptionId, searchQuery)}
-                              </h3>
+                              </span>
                               {filterType === 'followups' && prescription.nextFollowUp && (
-                                <motion.span
-                                  initial={{ scale: 0, rotate: -180 }}
-                                  animate={{ scale: 1, rotate: 0 }}
-                                  transition={{ delay: index * 0.05 + 0.3, duration: 0.4, type: "spring" }}
-                                  className="inline-flex items-center"
-                                >
-                                  <svg className="w-5 h-5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+                                <span className="flex-shrink-0">
+                                  <svg className="w-4 h-4 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.293l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
                                   </svg>
-                                </motion.span>
+                                </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            <div className="mt-1">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                                 filterType === 'followups' && prescription.nextFollowUp
                                   ? 'bg-orange-100 text-orange-800'
                                   : 'bg-green-100 text-green-800'
                               }`}>
                                 {filterType === 'followups' && prescription.nextFollowUp ? 'Follow-up' : 'Active'}
                               </span>
-                              {prescription.nextFollowUp && new Date(prescription.nextFollowUp) < new Date() && (
-                                <motion.span
-                                  initial={{ scale: 0 }}
-                                  animate={{ scale: 1 }}
-                                  transition={{ delay: index * 0.05 + 0.4, type: "spring" }}
-                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"
-                                >
-                                  Overdue
-                                </motion.span>
-                              )}
                             </div>
                           </div>
 
-                          {/* Patient Information */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <div className="flex items-center text-sm">
-                                <span className="font-medium text-gray-700 w-16">Patient:</span>
-                                <span className="text-gray-900">{highlightSearchTerm(prescription.patientName, searchQuery)} ({prescription.patientAge} years)</span>
-                              </div>
-                              {prescription.patientId?.phone && (
-                                <div className="flex items-center text-sm">
-                                  <span className="font-medium text-gray-700 w-16">Mobile:</span>
-                                  <span className="text-gray-600">{highlightSearchTerm(prescription.patientId.phone, searchQuery)}</span>
-                                </div>
-                              )}
+                          {/* Patient Name */}
+                          <div className="col-span-2">
+                            <div className="text-sm font-medium text-gray-900 truncate">
+                              {highlightSearchTerm(prescription.patientName, searchQuery)}
                             </div>
-                            <div className="space-y-1">
-                              <div className="flex items-center text-sm">
-                                <span className="font-medium text-gray-700 w-16">Created:</span>
-                                <span className="text-gray-600">{formatDate(prescription.createdAt)}</span>
+                            {prescription.nextFollowUp && new Date(prescription.nextFollowUp) < new Date() && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 mt-1">
+                                Overdue
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Age and Phone */}
+                          <div className="col-span-2">
+                            <div className="text-sm text-gray-900">{prescription.patientAge} years</div>
+                            {prescription.patientId?.phone && (
+                              <div className="text-sm text-gray-600 truncate">
+                                {highlightSearchTerm(prescription.patientId.phone, searchQuery)}
                               </div>
-                              {prescription.nextFollowUp && (
-                                <div className="flex items-center text-sm">
-                                  <span className="font-medium text-gray-700 w-16">Follow-up:</span>
-                                  <span className={`${
-                                    new Date(prescription.nextFollowUp) < new Date() ? 'text-red-600 font-medium' : 'text-amber-600'
-                                  }`}>
-                                    {formatDate(prescription.nextFollowUp)}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
+                            )}
                           </div>
 
                           {/* Symptoms */}
-                          <div className="bg-gray-50 rounded-lg p-3">
-                            <div className="text-sm">
-                              <span className="font-medium text-gray-700 block mb-1">Symptoms:</span>
-                              <p className="text-gray-600 leading-relaxed">
-                                {highlightSearchTerm(prescription.symptoms, searchQuery)}
-                              </p>
+                          <div className="col-span-3">
+                            <div className="text-sm text-gray-900 overflow-hidden">
+                              <div className="line-clamp-2">
+                                {highlightSearchTerm(prescription.symptoms.length > 80 ? prescription.symptoms.substring(0, 80) + '...' : prescription.symptoms, searchQuery)}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Dates */}
+                          <div className="col-span-2">
+                            <div className="text-sm text-gray-600">
+                              <div>Created: {formatDate(prescription.createdAt)}</div>
+                              {prescription.nextFollowUp && (
+                                <div className={`${
+                                  new Date(prescription.nextFollowUp) < new Date() ? 'text-red-600 font-medium' : 'text-amber-600'
+                                }`}>
+                                  Follow-up: {formatDate(prescription.nextFollowUp)}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="col-span-1">
+                            <div className="flex flex-col gap-1">
+                              <button
+                                onClick={() => handleViewPrescription(prescription._id)}
+                                className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded transition-colors"
+                                title="View Prescription"
+                              >
+                                View
+                              </button>
+                              <button
+                                onClick={() => handleEditPrescription(prescription._id)}
+                                className="text-xs bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded transition-colors"
+                                title="Edit Prescription"
+                              >
+                                Edit
+                              </button>
+                              {filterType === 'followups' && prescription.nextFollowUp && (
+                                <button
+                                  onClick={() => handleCreateFollowUp(prescription)}
+                                  className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded transition-colors"
+                                  title="Create Follow-up Prescription"
+                                >
+                                  Follow-up
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeletePrescription(prescription._id, prescription.prescriptionId)}
+                                disabled={deleting === prescription._id}
+                                className="text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded transition-colors disabled:bg-red-400"
+                                title="Delete Prescription"
+                              >
+                                {deleting === prescription._id ? (
+                                  <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin mx-auto"></div>
+                                ) : (
+                                  'Del'
+                                )}
+                              </button>
                             </div>
                           </div>
                         </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+              </AnimatePresence>
 
-                        {/* Right section - Action buttons */}
-                        <div className="flex flex-row lg:flex-col items-center lg:items-end gap-2 lg:gap-3 flex-shrink-0">
-                          <button
-                            onClick={() => handleViewPrescription(prescription._id)}
-                            className="btn btn-primary btn-sm flex-1 lg:flex-none lg:w-20"
-                          >
-                            View
-                          </button>
-                          <button
-                            onClick={() => handleEditPrescription(prescription._id)}
-                            className="btn btn-secondary btn-sm flex items-center justify-center w-10 h-8 lg:w-20"
-                            title="Edit Prescription"
-                          >
-                            <svg className="h-4 w-4 lg:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            <span className="hidden lg:inline">Edit</span>
-                          </button>
-                          <button
-                            onClick={() => handleDeletePrescription(prescription._id, prescription.prescriptionId)}
-                            disabled={deleting === prescription._id}
-                            className="btn btn-sm bg-red-600 hover:bg-red-700 text-white disabled:bg-red-400 flex items-center justify-center w-10 h-8 lg:w-20"
-                            title="Delete Prescription"
-                          >
-                            {deleting === prescription._id ? (
-                              <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            ) : (
-                              <>
-                                <svg className="h-4 w-4 lg:mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                                <span className="hidden lg:inline">Delete</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    </motion.li>
-                ))}
-                </motion.ul>
-              </motion.div>
-            </AnimatePresence>
+            {/* Compact Pagination Controls */}
+            {pagination && pagination.totalPages > 1 && (
+              <div className="mt-4 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                {/* Top row - Items per page and info */}
+                <div className="flex flex-col sm:flex-row justify-between items-center space-y-2 sm:space-y-0 mb-3">
+                  <div className="flex items-center space-x-2 text-sm">
+                    <span className="text-gray-600">Show:</span>
+                    <select
+                      value={itemsPerPage}
+                      onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
+                      className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    {((pagination.currentPage - 1) * pagination.limit) + 1}-{Math.min(pagination.currentPage * pagination.limit, pagination.totalPrescriptions)} of {pagination.totalPrescriptions}
+                  </div>
+                </div>
+
+                {/* Bottom row - Page navigation */}
+                <div className="flex justify-center items-center space-x-1">
+                  {/* Previous button */}
+                  <button
+                    onClick={() => handlePageChange(pagination.currentPage - 1)}
+                    disabled={!pagination.hasPrevPage || loading}
+                    className="px-2 py-1 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    ‹
+                  </button>
+
+                  {/* Page numbers */}
+                  {getPaginationNumbers().map((page, index) => (
+                    <span key={index}>
+                      {page === '...' ? (
+                        <span className="px-2 py-1 text-sm text-gray-400">...</span>
+                      ) : (
+                        <button
+                          onClick={() => handlePageChange(page as number)}
+                          disabled={loading}
+                          className={`px-2 py-1 text-sm font-medium rounded min-w-[32px] ${
+                            pagination.currentPage === page
+                              ? 'text-white bg-blue-600 border border-blue-600'
+                              : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          {page}
+                        </button>
+                      )}
+                    </span>
+                  ))}
+
+                  {/* Next button */}
+                  <button
+                    onClick={() => handlePageChange(pagination.currentPage + 1)}
+                    disabled={!pagination.hasNextPage || loading}
+                    className="px-2 py-1 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+            )}
             </div>
           )}
         </div>

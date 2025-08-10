@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 import { SweetAlert } from '../utils/SweetAlert';
 import Navbar from '../components/Navbar';
+import PrescriptionHistoryModal from '../components/PrescriptionHistoryModal';
 
 interface Patient {
   _id: string;
@@ -37,11 +38,43 @@ interface Prescription {
   createdAt: string;
 }
 
+interface Patient {
+  _id: string;
+  patientId: string;
+  name: string;
+  age: number;
+  sex: string;
+  phone: string;
+  address: string;
+  photo?: string;
+  emergencyContact: {
+    name: string;
+    relation: string;
+    phone: string;
+  };
+  medicalHistory: {
+    allergies?: string;
+    chronicIllnesses?: string;
+    pastSurgeries?: string;
+    medications?: string;
+    additionalNotes?: string;
+  };
+  createdAt: string;
+}
+
+interface PaginationInfo {
+  currentPage: number;
+  totalPages: number;
+  totalPatients: number;
+  limit: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
 const SearchPatients: React.FC = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [patients, setPatients] = useState<Patient[]>([]);
-  const [allPatients, setAllPatients] = useState<Patient[]>([]); // Store all patients for local filtering
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [loading, setLoading] = useState(false);
@@ -49,6 +82,13 @@ const SearchPatients: React.FC = () => {
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [patientSelectTimeout, setPatientSelectTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [prescriptionsCache, setPrescriptionsCache] = useState<{[key: string]: Prescription[]}>({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState<PaginationInfo | null>(null);
+  const [itemsPerPage, setItemsPerPage] = useState(5); // Changed default from 10 to 5
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
 
   // Helper function to get patient photo URL
   const getPatientPhotoUrl = (patient: Patient): string => {
@@ -70,10 +110,13 @@ const SearchPatients: React.FC = () => {
     return directUrl;
   };
 
-  // Load all patients on component mount
+  // Load patients with pagination on component mount
   useEffect(() => {
-    handleViewAllPatients();
-  }, []);
+    console.log('Mount/pagination effect triggered, isSearchMode:', isSearchMode, 'currentPage:', currentPage); // Debug log
+    if (!isSearchMode) {
+      fetchPatients(currentPage);
+    }
+  }, [currentPage, itemsPerPage, isSearchMode]);
 
   // Cleanup search timeout on unmount
   useEffect(() => {
@@ -81,14 +124,21 @@ const SearchPatients: React.FC = () => {
       if (searchTimeout) {
         clearTimeout(searchTimeout);
       }
+      if (patientSelectTimeout) {
+        clearTimeout(patientSelectTimeout);
+      }
     };
-  }, [searchTimeout]);
+  }, [searchTimeout, patientSelectTimeout]);
 
   // Real-time search effect
   useEffect(() => {
+    console.log('Real-time search effect triggered, searchQuery:', searchQuery); // Debug log
+    
     if (searchQuery.trim() === '') {
-      setPatients(allPatients);
+      console.log('Search query empty, resetting to normal mode'); // Debug log
+      setIsSearchMode(false);
       setIsSearching(false);
+      setCurrentPage(1);
       return;
     }
 
@@ -100,11 +150,12 @@ const SearchPatients: React.FC = () => {
     // Set new timeout for debounced search
     setIsSearching(true);
     const timeout = setTimeout(() => {
+      setIsSearchMode(true);
       performSearch(searchQuery);
-    }, 300); // 300ms debounce
+    }, 500); // Increased to 500ms for better performance
 
     setSearchTimeout(timeout);
-  }, [searchQuery, allPatients]);
+  }, [searchQuery]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -138,9 +189,32 @@ const SearchPatients: React.FC = () => {
     };
   }, [searchQuery, selectedPatient]);
 
+  const fetchPatients = async (page: number = 1) => {
+    console.log('fetchPatients called with page:', page); // Debug log
+    setLoading(true);
+    setError('');
+    
+    try {
+      const response = await api.get(`/patients?page=${page}&limit=${itemsPerPage}`);
+      console.log('fetchPatients response:', response.data); // Debug log
+      setPatients(response.data.patients);
+      setPagination(response.data.pagination);
+      setCurrentPage(page);
+      
+      if (response.data.patients.length === 0) {
+        setError('No patients found');
+      }
+    } catch (err: any) {
+      console.error('fetchPatients error:', err); // Debug log
+      setError('No Patients Found');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const performSearch = async (query: string) => {
     if (!query.trim()) {
-      setPatients(allPatients);
+      setIsSearchMode(false);
       setIsSearching(false);
       return;
     }
@@ -149,24 +223,15 @@ const SearchPatients: React.FC = () => {
     
     try {
       const response = await api.get(`/patients/search?query=${encodeURIComponent(query)}`);
-      setPatients(response.data.patients);
+      setPatients(response.data.patients || []);
+      setPagination(null); // Clear pagination for search results
       
       if (response.data.patients.length === 0) {
         SweetAlert.noSearchResults(query);
       }
     } catch (err: any) {
       console.error('Search error:', err);
-      // Fallback to local search if API fails
-      const localFiltered = allPatients.filter(patient => 
-        patient.name.toLowerCase().includes(query.toLowerCase()) ||
-        patient.patientId.toLowerCase().includes(query.toLowerCase()) ||
-        patient.phone.toLowerCase().includes(query.toLowerCase())
-      );
-      setPatients(localFiltered);
-      
-      if (localFiltered.length === 0) {
-        SweetAlert.noSearchResults(query);
-      }
+      setError('Search failed. Please try again.');
     } finally {
       setIsSearching(false);
     }
@@ -182,38 +247,101 @@ const SearchPatients: React.FC = () => {
     await performSearch(searchQuery);
   };
 
-  const handleViewAllPatients = async () => {
-    setLoading(true);
-    setError('');
-    setSearchQuery('');
-    
-    try {
-      const response = await api.get('/patients');
-      setAllPatients(response.data.patients);
-      setPatients(response.data.patients);
-      
-      if (response.data.patients.length === 0) {
-        setError('No patients found');
-      }
-    } catch (err: any) {
-      setError('No Patients Found');
-    } finally {
-      setLoading(false);
+  // Pagination functions
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= (pagination?.totalPages || 1) && !isSearchMode) {
+      setCurrentPage(page);
     }
   };
 
-  const handlePatientSelect = async (patient: Patient) => {
-    setSelectedPatient(patient);
-    setLoading(true);
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1);
+  };
+
+  const getPaginationNumbers = () => {
+    if (!pagination) return [];
     
-    try {
-      const response = await api.get(`/prescriptions/patient/${patient._id}`);
-      setPrescriptions(response.data.prescriptions);
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Error fetching patient history');
-    } finally {
-      setLoading(false);
+    const { currentPage, totalPages } = pagination;
+    const delta = 2;
+    const range = [];
+    const rangeWithDots = [];
+
+    for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
+      range.push(i);
     }
+
+    if (currentPage - delta > 2) {
+      rangeWithDots.push(1, '...');
+    } else {
+      rangeWithDots.push(1);
+    }
+
+    rangeWithDots.push(...range);
+
+    if (currentPage + delta < totalPages - 1) {
+      rangeWithDots.push('...', totalPages);
+    } else {
+      if (totalPages > 1) {
+        rangeWithDots.push(totalPages);
+      }
+    }
+
+    return rangeWithDots;
+  };
+
+  const handlePatientSelect = async (patient: Patient) => {
+    // Prevent rapid consecutive calls
+    if (patientSelectTimeout) {
+      clearTimeout(patientSelectTimeout);
+    }
+    
+    // Check cache first
+    if (prescriptionsCache[patient._id]) {
+      setSelectedPatient(patient);
+      setPrescriptions(prescriptionsCache[patient._id]);
+      return;
+    }
+    
+    // Debounce patient selection to prevent rate limiting
+    const timeout = setTimeout(async () => {
+      setSelectedPatient(patient);
+      setLoading(true);
+      
+      try {
+        const response = await api.get(`/prescriptions/patient/${patient._id}`);
+        const fetchedPrescriptions = response.data.prescriptions;
+        setPrescriptions(fetchedPrescriptions);
+        
+        // Cache the result for 5 minutes
+        setPrescriptionsCache(prev => ({
+          ...prev,
+          [patient._id]: fetchedPrescriptions
+        }));
+        
+        // Clear cache after 5 minutes
+        setTimeout(() => {
+          setPrescriptionsCache(prev => {
+            const newCache = { ...prev };
+            delete newCache[patient._id];
+            return newCache;
+          });
+        }, 5 * 60 * 1000); // 5 minutes
+        
+      } catch (err: any) {
+        console.error('Error fetching prescriptions:', err);
+        if (err.response?.status === 429) {
+          setError('Too many requests. Please wait a moment and try again.');
+          SweetAlert.error('Rate Limit', 'Too many requests. Please wait a moment and try again.');
+        } else {
+          setError(err.response?.data?.message || 'Error fetching patient history');
+        }
+      } finally {
+        setLoading(false);
+      }
+    }, 200); // 200ms debounce for patient selection
+    
+    setPatientSelectTimeout(timeout);
   };
 
   const handleClosePatientDetails = () => {
@@ -247,14 +375,18 @@ const SearchPatients: React.FC = () => {
     try {
       await api.delete(`/patients/${patientId}`);
       
-      // Remove patient from both lists
+      // Remove patient from current list
       setPatients(patients.filter(p => p._id !== patientId));
-      setAllPatients(allPatients.filter(p => p._id !== patientId));
       
       // Clear selected patient if it was deleted
       if (selectedPatient?._id === patientId) {
         setSelectedPatient(null);
         setPrescriptions([]);
+      }
+      
+      // Refresh the patient list
+      if (!isSearchMode) {
+        fetchPatients(currentPage);
       }
       
       // Show success message
@@ -277,45 +409,89 @@ const SearchPatients: React.FC = () => {
     }
   };
 
+  const handleOpenPrescriptionModal = () => {
+    setShowPrescriptionModal(true);
+  };
+
+  const handleClosePrescriptionModal = () => {
+    setShowPrescriptionModal(false);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
-      
+      <Navbar />
       
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <h1 className="text-3xl font-bold text-gray-900 mb-8">Search Patient History</h1>
+          {/* <h1 className="text-3xl font-bold text-gray-900 mb-8">Search Patient History</h1> */}
           
           {/* Search Bar */}
-          <div className="bg-white shadow rounded-lg p-6 mb-8">
-            <div className="flex space-x-4">
-              <div className="flex-1">
-                <div className="relative">
+          <div className="bg-white shadow rounded-lg p-4 mb-6">
+            {/* Search Input Section */}
+            <div className="mb-3">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                   </div>
                   <input
                     id="patient-search"
                     type="text"
-                    placeholder="Search by patient name, ID, or phone number... (Ctrl+F to focus, Esc to clear)"
+                    placeholder="Search by patient name, ID, or phone number..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyPress={handleKeyPress}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    className="w-full pl-9 pr-10 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                     autoComplete="off"
                   />
-                  {isSearching && (
-                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                      <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    {isSearching ? (
+                      <svg className="animate-spin h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    ) : searchQuery ? (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="h-4 w-4 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                        title="Clear search"
+                      >
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+                <button
+                  onClick={handleSearch}
+                  disabled={loading || isSearching}
+                  className={`w-24 px-4 py-2 rounded-md font-medium text-sm transition-colors duration-200 ${
+                    loading || isSearching
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                      : 'bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-sm'
+                  }`}
+                >
+                  {isSearching ? (
+                    <div className="flex items-center justify-center">
+                      <svg className="animate-spin h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
                     </div>
+                  ) : (
+                    <div className="flex items-center justify-center">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
                   )}
-                </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <div className="text-sm text-gray-600">
+                </button>
+              </div>
+                <div className="mt-1 flex items-center justify-between text-xs">
+                  <div className="text-gray-600">
                     {searchQuery ? (
                       <>
                         <span className="font-medium">{patients.length}</span> patient{patients.length !== 1 ? 's' : ''} found
@@ -323,34 +499,132 @@ const SearchPatients: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        Showing <span className="font-medium">{patients.length}</span> of <span className="font-medium">{allPatients.length}</span> total patients
+                        {isSearchMode ? (
+                          <>Search results: <span className="font-medium">{patients.length}</span> patients found</>
+                        ) : (
+                          <>
+                            Showing <span className="font-medium">{patients.length}</span> patients
+                            {pagination && (
+                              <> of <span className="font-medium">{pagination.totalPatients}</span> total</>
+                            )}
+                          </>
+                        )}
                       </>
                     )}
                   </div>
-                  <div className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                    Total: {allPatients.length} patients
+                  <div className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                    {isSearchMode ? (
+                      `Found: ${patients.length}`
+                    ) : (
+                      `Total: ${pagination?.totalPatients || 0}`
+                    )}
                   </div>
                 </div>
-                <div className="mt-2 text-xs text-gray-400">
+                <div className="mt-1 text-xs text-gray-400">
                   Search by patient name, ID, or phone number • Real-time search enabled
                 </div>
+
+                {/* Pagination Controls in Header */}
+                {!isSearchMode && pagination && pagination.totalPages > 1 && (
+                  <div className="mt-3 pt-2 border-t border-gray-200">
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-2">
+                      {/* Pagination Info */}
+                      <div className="text-xs text-gray-600">
+                        📄 Page {currentPage} of {pagination.totalPages} • 👥 Viewing {((currentPage - 1) * itemsPerPage) + 1}-{Math.min(currentPage * itemsPerPage, pagination.totalPatients)} of {pagination.totalPatients} patients
+                      </div>
+                      
+                      {/* Pagination Controls */}
+                      <div className="flex items-center gap-1">
+                        {/* Previous Button */}
+                        <button
+                          onClick={() => handlePageChange(currentPage - 1)}
+                          disabled={currentPage === 1}
+                          className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
+                            currentPage === 1
+                              ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          ← Prev
+                        </button>
+
+                        {/* Page Numbers (compact) */}
+                        <div className="flex items-center gap-1">
+                          {(() => {
+                            const paginationNumbers = getPaginationNumbers();
+                            // Always show current page and adjacent pages
+                            let visiblePages = [];
+                            
+                            if (paginationNumbers.length <= 3) {
+                              // If 3 or fewer pages, show all
+                              visiblePages = paginationNumbers;
+                            } else {
+                              // Find current page index
+                              const currentIndex = paginationNumbers.findIndex(p => p === currentPage);
+                              
+                              if (currentIndex !== -1) {
+                                // Show current page and one on each side if possible
+                                const start = Math.max(0, currentIndex - 1);
+                                const end = Math.min(paginationNumbers.length, start + 3);
+                                visiblePages = paginationNumbers.slice(start, end);
+                              } else {
+                                // Fallback to first 3
+                                visiblePages = paginationNumbers.slice(0, 3);
+                              }
+                            }
+                            
+                            return visiblePages.map((page, index) => (
+                              <button
+                                key={index}
+                                onClick={() => typeof page === 'number' ? handlePageChange(page) : undefined}
+                                disabled={typeof page !== 'number'}
+                                className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                                  page === currentPage
+                                    ? 'bg-blue-600 text-white'
+                                    : typeof page === 'number'
+                                    ? 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                                    : 'bg-white text-gray-400 cursor-default'
+                                }`}
+                              >
+                                {page}
+                              </button>
+                            ));
+                          })()}
+                        </div>
+
+                        {/* Next Button */}
+                        <button
+                          onClick={() => handlePageChange(currentPage + 1)}
+                          disabled={currentPage === pagination.totalPages}
+                          className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${
+                            currentPage === pagination.totalPages
+                              ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          Next →
+                        </button>
+
+                        {/* Items per page selector (compact) */}
+                        <select
+                          value={itemsPerPage}
+                          onChange={(e) => {
+                            setItemsPerPage(Number(e.target.value));
+                            setCurrentPage(1);
+                          }}
+                          className="ml-1 border border-gray-300 rounded px-1 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value={5}>5</option>
+                          <option value={10}>10</option>
+                          <option value={20}>20</option>
+                          <option value={50}>50</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              <button
-                onClick={handleSearch}
-                disabled={loading || isSearching}
-                className="btn btn-primary"
-              >
-                Search
-              </button>
-              <button
-                onClick={handleViewAllPatients}
-                disabled={loading || isSearching}
-                className="btn btn-secondary"
-              >
-                {loading ? 'Loading...' : 'View All Patients'}
-              </button>
             </div>
-          </div>
 
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-8">
@@ -602,35 +876,22 @@ const SearchPatients: React.FC = () => {
                     <div>
                       <h5 className="font-medium text-gray-900 mb-3">Prescription History</h5>
                       {prescriptions.length > 0 ? (
-                        <div className="space-y-4">
-                          {prescriptions.map((prescription) => (
-                            <div key={prescription._id} className="border border-gray-200 rounded-lg p-4">
-                              <div className="flex justify-between items-start mb-2">
-                                <h6 className="font-medium text-gray-900">{prescription.prescriptionId}</h6>
-                                <span className="text-sm text-gray-500">
-                                  {new Date(prescription.createdAt).toLocaleDateString()}
-                                </span>
-                              </div>
-                              <div className="text-sm space-y-2">
-                                <div>
-                                  <p className="font-medium text-gray-900">Symptoms:</p>
-                                  <p className="text-gray-600">{prescription.symptoms}</p>
-                                </div>
-                                <div>
-                                  <p className="font-medium text-gray-900">Prescription:</p>
-                                  <p className="text-gray-600">{prescription.prescription}</p>
-                                </div>
-                                {prescription.nextFollowUp && (
-                                  <div>
-                                    <p className="font-medium text-gray-900">Next Follow-up:</p>
-                                    <p className="text-gray-600">
-                                      {new Date(prescription.nextFollowUp).toLocaleDateString()}
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          <p className="text-sm text-gray-600 mb-2">
+                            <span className="font-medium">{prescriptions.length}</span> prescription{prescriptions.length !== 1 ? 's' : ''} found
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            Latest: {new Date(prescriptions[0]?.createdAt).toLocaleDateString('en-GB')}
+                            {prescriptions.length > 1 && (
+                              <span> • Oldest: {new Date(prescriptions[prescriptions.length - 1]?.createdAt).toLocaleDateString('en-GB')}</span>
+                            )}
+                          </p>
+                          <button
+                            onClick={handleOpenPrescriptionModal}
+                            className="mt-3 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                          >
+                            View Prescription History
+                          </button>
                         </div>
                       ) : (
                         <p className="text-gray-500 text-sm">No prescriptions found for this patient.</p>
@@ -652,6 +913,14 @@ const SearchPatients: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Prescription History Modal */}
+      <PrescriptionHistoryModal
+        isOpen={showPrescriptionModal}
+        onClose={handleClosePrescriptionModal}
+        patient={selectedPatient}
+        prescriptions={prescriptions}
+      />
     </div>
   );
 };

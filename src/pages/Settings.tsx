@@ -33,6 +33,7 @@ const Settings: React.FC = () => {
   // Danger Zone states
   const [isDangerZoneUnlocked, setIsDangerZoneUnlocked] = useState(false);
   const [dangerZoneAuth, setDangerZoneAuth] = useState({ username: '', password: '' });
+  const [authenticatingDangerZone, setAuthenticatingDangerZone] = useState(false);
   const [passwordChange, setPasswordChange] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [dataCounts, setDataCounts] = useState({ doctors: 0, patients: 0, prescriptions: 0, total: 0 });
   const [isExporting, setIsExporting] = useState(false);
@@ -155,6 +156,7 @@ const Settings: React.FC = () => {
   const authenticateDangerZone = async () => {
     try {
       setError('');
+      setAuthenticatingDangerZone(true);
       const response = await api.post('/auth/danger-zone-auth', {
         username: dangerZoneAuth.username,
         password: dangerZoneAuth.password
@@ -168,6 +170,8 @@ const Settings: React.FC = () => {
     } catch (err: any) {
       setError(err.response?.data?.message || 'Authentication failed');
       SweetAlert.error('Access Denied', err.response?.data?.message || 'Invalid credentials');
+    } finally {
+      setAuthenticatingDangerZone(false);
     }
   };
 
@@ -589,7 +593,10 @@ const Settings: React.FC = () => {
                       <input
                         type="text"
                         value={dangerZoneAuth.username}
-                        onChange={(e) => setDangerZoneAuth({...dangerZoneAuth, username: e.target.value})}
+                        onChange={(e) => {
+                          setDangerZoneAuth({...dangerZoneAuth, username: e.target.value});
+                          setError(''); // Clear error when user types
+                        }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                         placeholder="Enter your username"
                       />
@@ -601,16 +608,27 @@ const Settings: React.FC = () => {
                       <input
                         type="password"
                         value={dangerZoneAuth.password}
-                        onChange={(e) => setDangerZoneAuth({...dangerZoneAuth, password: e.target.value})}
+                        onChange={(e) => {
+                          setDangerZoneAuth({...dangerZoneAuth, password: e.target.value});
+                          setError(''); // Clear error when user types
+                        }}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
                         placeholder="Enter your password"
                       />
                     </div>
                     <button
                       onClick={authenticateDangerZone}
-                      className="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition duration-200"
+                      disabled={authenticatingDangerZone}
+                      className="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition duration-200"
                     >
-                      Authenticate
+                      {authenticatingDangerZone ? (
+                        <div className="flex items-center justify-center">
+                          <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+                          Authenticating...
+                        </div>
+                      ) : (
+                        'Authenticate'
+                      )}
                     </button>
                   </div>
                 </div>

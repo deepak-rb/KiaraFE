@@ -1,4 +1,28 @@
-# Getting Started with Create React App
+# Kiara Clinic Management System - Frontend
+
+This is the frontend application for the Kiara Clinic Management System, built with React and TypeScript.
+
+## Features
+
+- 🏥 **Patient Management**: Add, edit, and search patient records
+- 📋 **Prescription Management**: Create, edit, and view prescriptions
+- 🔍 **Advanced Search**: Real-time search with filtering capabilities
+- 📊 **Dashboard**: Overview of clinic statistics and activities
+- 📱 **Responsive Design**: Works seamlessly on desktop and mobile devices
+- 🎨 **Modern UI**: Clean, professional interface with green theme
+- 🔐 **Secure Authentication**: Doctor login with JWT tokens
+
+## Technologies Used
+
+- **React 18** with TypeScript
+- **Tailwind CSS** for styling
+- **Framer Motion** for animations
+- **React Router** for navigation
+- **Formik & Yup** for form handling and validation
+- **Axios** for API communication
+- **SweetAlert2** for notifications
+
+## Quick Start
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 

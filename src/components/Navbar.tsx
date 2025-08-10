@@ -9,7 +9,9 @@ const Navbar: React.FC = () => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => {
+    return location.pathname === path;
+  };
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -62,11 +64,11 @@ const Navbar: React.FC = () => {
           <div className="flex items-center">
             <Link to="/dashboard" className="flex items-center" onClick={closeMobileMenu}>
               <motion.div 
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg px-3 py-1 text-lg font-bold shadow-lg"
+                className="bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg px-3 py-1 text-lg font-bold shadow-lg"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                ✚ Clinic
+                ✚ Kiara Clinic
               </motion.div>
             </Link>
           </div>
@@ -94,7 +96,7 @@ const Navbar: React.FC = () => {
                 </Link>
                 {isActive(item.to) && (
                   <motion.div
-                    className="absolute bottom-0 left-1 right-1 h-0.5 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"
+                    className="absolute bottom-0 left-1 right-1 h-0.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full"
                     layoutId="underline"
                     initial={false}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -106,7 +108,7 @@ const Navbar: React.FC = () => {
 
           {/* Desktop User Info and Logout */}
           <div className="hidden md:flex items-center space-x-4">
-            <div className="text-sm bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent font-medium">
+            <div className="text-sm bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent font-medium">
               <span className="text-gray-600">Dr. </span>
               <span className="font-semibold">{doctor?.name}</span>
             </div>

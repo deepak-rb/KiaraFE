@@ -1,6 +1,6 @@
 import Swal from 'sweetalert2';
 
-// Custom SweetAlert2 configurations for the clinic management system
+// Custom SweetAlert2 configurations for the Kiara Clinic management system
 export const SweetAlert = {
   // Success alerts
   success: (title: string, message?: string) => {

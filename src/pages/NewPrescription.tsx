@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Formik, Form, Field } from 'formik';
 import { SweetAlert } from '../utils/SweetAlert';
 import api from '../utils/api';
@@ -20,6 +20,7 @@ interface Patient {
 
 const NewPrescription: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [error, setError] = useState('');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [filteredPatients, setFilteredPatients] = useState<Patient[]>([]);
@@ -27,14 +28,21 @@ const NewPrescription: React.FC = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [isFollowUp, setIsFollowUp] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
-  const initialValues = {
-    patientId: '',
-    symptoms: '',
-    prescription: '',
-    nextFollowUp: '',
-    notes: ''
+  const getInitialValues = () => {
+    const followUp = searchParams.get('followUp') === 'true';
+    const originalPrescriptionCode = searchParams.get('originalPrescriptionCode');
+    const originalPrescriptionId = searchParams.get('originalPrescriptionId');
+    
+    return {
+      patientId: selectedPatient?._id || '',
+      symptoms: '',
+      prescription: '',
+      nextFollowUp: '',
+      notes: followUp ? `Follow-up prescription${originalPrescriptionCode ? ` (Original: ${originalPrescriptionCode})` : originalPrescriptionId ? ` (Original: ${originalPrescriptionId})` : ''}` : ''
+    };
   };
 
   useEffect(() => {
@@ -44,6 +52,35 @@ const NewPrescription: React.FC = () => {
   useEffect(() => {
     setFilteredPatients(patients);
   }, [patients]);
+
+  // Handle URL parameters for follow-up prescriptions
+  useEffect(() => {
+    const patientObjectId = searchParams.get('patientObjectId'); // MongoDB object ID for API calls
+    const patientId = searchParams.get('patientId'); // Human-readable patient ID
+    const patientName = searchParams.get('patientName');
+    const patientAge = searchParams.get('patientAge');
+    const patientPhone = searchParams.get('patientPhone');
+    const followUp = searchParams.get('followUp');
+    const originalPrescriptionId = searchParams.get('originalPrescriptionId');
+
+    if (followUp === 'true' && patientObjectId && patientName) {
+      setIsFollowUp(true);
+      
+      // Create a patient object from URL params
+      const preSelectedPatient: Patient = {
+        _id: patientObjectId, // Use object ID for API calls
+        patientId: patientId || patientObjectId, // Use human-readable ID if available
+        name: patientName,
+        age: parseInt(patientAge || '0'),
+        sex: 'Unknown', // We don't have this in URL params
+        phone: patientPhone || ''
+      };
+      
+      setSelectedPatient(preSelectedPatient);
+      setSearchTerm(patientName);
+      setShowDropdown(false);
+    }
+  }, [searchParams, patients]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -161,10 +198,36 @@ const NewPrescription: React.FC = () => {
       
       <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <h1 className="text-3xl font-bold text-gray-900 mb-8">New Prescription</h1>
+          <div className="flex items-center gap-4 mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">
+              {searchParams.get('followUp') === 'true' ? 'New Follow-up Prescription' : 'New Prescription'}
+            </h1>
+            {searchParams.get('followUp') === 'true' && (
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
+                Follow-up
+              </span>
+            )}
+          </div>
+          
+          {searchParams.get('followUp') === 'true' && searchParams.get('originalPrescriptionId') && (
+            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm font-medium text-blue-800">
+                  Follow-up Prescription
+                </span>
+              </div>
+              <div className="text-xs text-blue-700 space-y-1">
+                <div>Patient: {searchParams.get('patientName')} (ID: {searchParams.get('patientId')})</div>
+                <div>Original Prescription: {searchParams.get('originalPrescriptionCode') || searchParams.get('originalPrescriptionId')}</div>
+              </div>
+            </div>
+          )}
           
           <Formik
-            initialValues={initialValues}
+            initialValues={getInitialValues()}
             validationSchema={prescriptionSchema}
             onSubmit={handleSubmit}
             validateOnChange={true}

@@ -31,14 +31,18 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // Check if this is a danger zone auth request - don't auto-redirect for these
+    const isDangerZoneAuth = error.config?.url?.includes('/auth/danger-zone-auth');
+    
+    if (error.response?.status === 401 && !isDangerZoneAuth) {
       SweetAlert.sessionExpired();
       localStorage.removeItem('token');
       localStorage.removeItem('doctor');
       window.location.href = '/login';
     } else if (error.response?.status === 429) {
       console.warn('Rate limit exceeded. Please slow down requests.');
-      // You could show a toast notification here
+      // Show user-friendly message for rate limiting
+      SweetAlert.warning('Rate Limit Exceeded', 'You are making requests too quickly. Please wait a moment and try again.');
     } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
       SweetAlert.networkError();
     } else if (!error.response) {

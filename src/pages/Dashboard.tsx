@@ -90,35 +90,27 @@ const Dashboard: React.FC = () => {
   const fetchDashboardData = async () => {
     try {
       startLoading();
-      const [prescriptionsRes, patientsRes] = await Promise.all([
-        api.get('/prescriptions'),
-        api.get('/patients')
+      
+      // Fetch statistics from the dedicated stats endpoint
+      const statsRes = await api.get('/stats/dashboard');
+      const statsData = statsRes.data;
+
+      // Fetch recent data (limited amounts for display)
+      const [recentPrescriptionsRes, recentPatientsRes] = await Promise.all([
+        api.get('/prescriptions?page=1&limit=5'),
+        api.get('/patients?page=1&limit=5')
       ]);
 
-      const patientsData = patientsRes.data.patients || patientsRes.data || [];
-      const prescriptionsData = prescriptionsRes.data.prescriptions || prescriptionsRes.data || [];
+      const recentPatientsData = recentPatientsRes.data.patients || [];
+      const recentPrescriptionsData = recentPrescriptionsRes.data.prescriptions || [];
 
-      // Filter recent data
-      setRecentPrescriptions(prescriptionsData.slice(0, 5));
-      setRecentPatients(patientsData.slice(0, 5));
+      // Set recent data
+      setRecentPrescriptions(recentPrescriptionsData);
+      setRecentPatients(recentPatientsData);
 
-      // Calculate stats
-      const today = new Date().toDateString();
-      const todayPrescriptions = prescriptionsData.filter((p: Prescription) => {
-        return new Date(p.createdAt).toDateString() === today;
-      }).length;
-
-      const weekStart = new Date();
-      weekStart.setDate(weekStart.getDate() - 7);
-      const weekPrescriptions = prescriptionsData.filter((p: Prescription) => {
-        return new Date(p.createdAt) >= weekStart;
-      }).length;
-
-      const monthStart = new Date();
-      monthStart.setMonth(monthStart.getMonth() - 1);
-      const monthPrescriptions = prescriptionsData.filter((p: Prescription) => {
-        return new Date(p.createdAt) >= monthStart;
-      }).length;
+      // For follow-ups, we need to fetch some prescriptions with nextFollowUp
+      const followUpRes = await api.get('/prescriptions?page=1&limit=50'); // Get more to find follow-ups
+      const prescriptionsData = followUpRes.data.prescriptions || [];
 
       // Process follow-ups from prescriptions
       const followUpData: FollowUp[] = prescriptionsData
@@ -143,23 +135,7 @@ const Dashboard: React.FC = () => {
 
       setUpcomingFollowUps(followUpData.slice(0, 5));
 
-      const followUpsToday = followUpData.filter((f: FollowUp) => {
-        return new Date(f.nextFollowUp).toDateString() === today;
-      }).length;
-
-      const overdueFollowUps = followUpData.filter((f: FollowUp) => f.isOverdue).length;
-
-      const statsData = {
-        totalPatients: patientsData.length,
-        totalPrescriptions: prescriptionsData.length,
-        todayPrescriptions,
-        weekPrescriptions,
-        monthPrescriptions,
-        totalFollowUps: followUpData.length,
-        followUpsToday,
-        overdueFollowUps,
-      };
-
+      // Use the statistics from the backend
       setStats(statsData);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);

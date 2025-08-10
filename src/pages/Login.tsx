@@ -18,7 +18,7 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-white to-emerald-50 py-12 px-4 sm:px-6 lg:px-8">
       <motion.div 
         className="max-w-md w-full space-y-8"
         initial={{ opacity: 0, y: 50 }}
@@ -32,15 +32,15 @@ const Login: React.FC = () => {
         >
           <div className="mx-auto h-12 w-auto flex justify-center">
             <motion.div 
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl px-6 py-3 text-xl font-bold shadow-2xl"
+              className="bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl px-6 py-3 text-xl font-bold shadow-2xl"
               whileHover={{ scale: 1.05, rotate: 1 }}
               whileTap={{ scale: 0.95 }}
             >
-              ✚ Clinic Management
+              ✚ Kiara Clinic
             </motion.div>
           </div>
           <motion.h2 
-            className="mt-6 text-center text-4xl font-extrabold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"
+            className="mt-6 text-center text-4xl font-extrabold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4, duration: 0.5 }}
@@ -53,7 +53,7 @@ const Login: React.FC = () => {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6, duration: 0.5 }}
           >
-            Sign in to your clinic management account
+            Sign in to your Kiara Clinic account
           </motion.p>
         </motion.div>
         
@@ -108,7 +108,7 @@ const Login: React.FC = () => {
                   <FormSubmitButton
                     isSubmitting={isSubmitting}
                     isValid={isValid}
-                    className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transform transition-all duration-200 hover:scale-105"
+                    className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transform transition-all duration-200 hover:scale-105"
                   >
                     {isSubmitting ? 'Signing in...' : 'Sign in'}
                   </FormSubmitButton>
