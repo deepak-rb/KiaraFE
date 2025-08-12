@@ -107,6 +107,19 @@ const AddPatient: React.FC = () => {
     }
   };
 
+  const handleAgeChange = (value: string, setFieldValue: any) => {
+    setFieldValue('age', value);
+    
+    // Auto-calculate date of birth from age (January 1st of the calculated birth year)
+    if (value && !isNaN(parseInt(value))) {
+      const age = parseInt(value);
+      const currentYear = new Date().getFullYear();
+      const birthYear = currentYear - age;
+      const calculatedDateOfBirth = `${birthYear}-01-01`;
+      setFieldValue('dateOfBirth', calculatedDateOfBirth);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
       <div className="px-4 py-6 sm:px-0">
@@ -186,14 +199,20 @@ const AddPatient: React.FC = () => {
                       )}
                     </Field>
                     <Field name="age">
-                      {({ field }: any) => (
+                      {({ field, form }: any) => (
                         <div>
                           <label className="form-label">Age</label>
                           <input
                             {...field}
                             type="number"
-                            className="form-input bg-gray-50"
-                            readOnly
+                            className="form-input"
+                            min="0"
+                            max="150"
+                            placeholder="Enter age"
+                            onChange={(e) => {
+                              field.onChange(e);
+                              handleAgeChange(e.target.value, form.setFieldValue);
+                            }}
                           />
                         </div>
                       )}
