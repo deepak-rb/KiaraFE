@@ -27,6 +27,7 @@ interface Prescription {
   symptoms: string;
   prescription: string;
   nextFollowUp?: string;
+  status?: string;
   createdAt: string;
 }
 
@@ -363,9 +364,9 @@ const Dashboard: React.FC = () => {
                 <div className="space-y-3">
                   {upcomingFollowUps.slice(0, 5).map((followUp) => (
                     <div key={followUp._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <div className="font-medium text-gray-900">{followUp.patientName}</div>
-                        <div className="text-sm text-gray-500">Patient ID: {followUp.patientId}</div>
+                      <div className="text-left">
+                        <div className="font-medium text-gray-900 text-left">{followUp.patientName}</div>
+                        <div className="text-sm text-gray-500 text-left">Patient ID: {followUp.patientId}</div>
                       </div>
                       <div className="text-right">
                         <div className={`text-sm font-medium ${
@@ -426,11 +427,11 @@ const Dashboard: React.FC = () => {
                     {recentPrescriptions.map((prescription) => (
                       <div key={prescription._id} className="border-l-4 border-blue-400 bg-blue-50 p-4">
                         <div className="flex justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-blue-800">
+                          <div className="text-left">
+                            <p className="text-sm font-medium text-blue-800 text-left">
                               {prescription.patientId.name}
                             </p>
-                            <p className="text-sm text-blue-600">
+                            <p className="text-sm text-blue-600 text-left">
                               ID: {prescription.prescriptionId}
                             </p>
                           </div>
@@ -439,7 +440,7 @@ const Dashboard: React.FC = () => {
                               {new Date(prescription.createdAt).toLocaleDateString()}
                             </p>
                             <Link
-                              to={`/prescriptions/view/${prescription._id}`}
+                              to={`/prescriptions/${prescription._id}`}
                               className="text-xs text-blue-800 hover:text-blue-900 font-medium"
                             >
                               View Details
@@ -491,11 +492,11 @@ const Dashboard: React.FC = () => {
                                 target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.name)}&background=0d6efd&color=fff&size=40`;
                               }}
                             />
-                            <div>
-                              <p className="text-sm font-medium text-green-800">
+                            <div className="text-left">
+                              <p className="text-sm font-medium text-green-800 text-left">
                                 {patient.name}
                               </p>
-                              <p className="text-sm text-green-600">
+                              <p className="text-sm text-green-600 text-left">
                                 {patient.age} years, {patient.sex}
                               </p>
                             </div>

@@ -37,7 +37,9 @@ interface Prescription {
   nextFollowUp?: string;
   digitalSignature?: string;
   notes?: string;
+  status?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 const PrescriptionView: React.FC = () => {
@@ -47,6 +49,28 @@ const PrescriptionView: React.FC = () => {
   const [prescription, setPrescription] = useState<Prescription | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Format date to DD-MMM-YYYY format
+  const formatFollowUpDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  // Format completion date for status display
+  const formatCompletedDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
 
   useEffect(() => {
     if (id) {
@@ -178,6 +202,27 @@ const PrescriptionView: React.FC = () => {
                 <div className="text-right">
                   <p className="text-sm text-gray-500">Date: {new Date(prescription.createdAt).toLocaleDateString()}</p>
                   <p className="text-sm text-gray-500">Prescription ID: {prescription.prescriptionId}</p>
+                  {prescription.status && (
+                    <div className="mt-2">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        prescription.status === 'follow_up_completed'
+                          ? 'bg-blue-100 text-blue-800'
+                          : prescription.status === 'completed'
+                          ? 'bg-gray-100 text-gray-800'
+                          : prescription.nextFollowUp
+                          ? 'bg-orange-100 text-orange-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {prescription.status === 'follow_up_completed'
+                          ? `Review Completed${prescription.updatedAt ? ` (${formatCompletedDate(prescription.updatedAt)})` : ''}`
+                          : prescription.status === 'completed'
+                          ? 'Completed'
+                          : prescription.nextFollowUp
+                          ? 'Review Pending'
+                          : 'Resolved'}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -230,7 +275,7 @@ const PrescriptionView: React.FC = () => {
               {prescription.nextFollowUp && (
                 <div className="mb-6">
                   <h4 className="text-md font-semibold text-gray-900 mb-2">Next Follow-up</h4>
-                  <p className="text-lg">{new Date(prescription.nextFollowUp).toLocaleDateString()}</p>
+                  <p className="text-lg">{formatFollowUpDate(prescription.nextFollowUp)}</p>
                 </div>
               )}
 

@@ -36,6 +36,8 @@ interface Prescription {
   prescription: string;
   nextFollowUp?: string;
   createdAt: string;
+  status?: string;
+  updatedAt?: string;
 }
 
 interface Patient {
@@ -81,6 +83,17 @@ const SearchPatients: React.FC = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  // Format date to DD-MMM-YYYY format
+  const formatCompletedDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [patientSelectTimeout, setPatientSelectTimeout] = useState<NodeJS.Timeout | null>(null);
   const [prescriptionsCache, setPrescriptionsCache] = useState<{[key: string]: Prescription[]}>({});
@@ -877,15 +890,49 @@ const SearchPatients: React.FC = () => {
                       <h5 className="font-medium text-gray-900 mb-3">Prescription History</h5>
                       {prescriptions.length > 0 ? (
                         <div className="bg-gray-50 rounded-lg p-4">
-                          <p className="text-sm text-gray-600 mb-2">
-                            <span className="font-medium">{prescriptions.length}</span> prescription{prescriptions.length !== 1 ? 's' : ''} found
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            Latest: {new Date(prescriptions[0]?.createdAt).toLocaleDateString('en-GB')}
-                            {prescriptions.length > 1 && (
-                              <span> • Oldest: {new Date(prescriptions[prescriptions.length - 1]?.createdAt).toLocaleDateString('en-GB')}</span>
-                            )}
-                          </p>
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <p className="text-sm text-gray-600">
+                                <span className="font-medium">{prescriptions.length}</span> prescription{prescriptions.length !== 1 ? 's' : ''} found
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Latest: {new Date(prescriptions[0]?.createdAt).toLocaleDateString('en-GB')}
+                                {prescriptions.length > 1 && (
+                                  <span> • Oldest: {new Date(prescriptions[prescriptions.length - 1]?.createdAt).toLocaleDateString('en-GB')}</span>
+                                )}
+                              </p>
+                            </div>
+                            <div className="ml-2">
+                              {(() => {
+                                const latestPrescription = prescriptions[0];
+                                if (latestPrescription?.status === 'follow_up_completed') {
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                      Review Completed{latestPrescription.updatedAt ? ` (${formatCompletedDate(latestPrescription.updatedAt)})` : ''}
+                                    </span>
+                                  );
+                                } else if (latestPrescription?.nextFollowUp) {
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                      Review Pending
+                                    </span>
+                                  );
+                                } else if (latestPrescription?.status === 'active') {
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                      Resolved
+                                    </span>
+                                  );
+                                } else {
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                      Active
+                                    </span>
+                                  );
+                                }
+                              })()}
+                            </div>
+                          </div>
                           <button
                             onClick={handleOpenPrescriptionModal}
                             className="mt-3 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"

@@ -33,7 +33,9 @@ interface Prescription {
   nextFollowUp?: string;
   digitalSignature?: string;
   notes?: string;
+  status?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 interface PaginationInfo {
@@ -146,6 +148,13 @@ const AllPrescriptions: React.FC = () => {
       // Add filter parameter to API call based on current filter type
       const filterParam = filterType === 'followups' ? '&filter=followups' : '';
       const response = await api.get(`/prescriptions?page=${page}&limit=${itemsPerPage}${filterParam}`);
+      
+      console.log('Prescription data received:', response.data.prescriptions?.slice(0, 2)); // Debug log
+      
+      // Additional debug: Check if any prescriptions have follow_up_completed status
+      const completedFollowUps = response.data.prescriptions?.filter((p: any) => p.status === 'follow_up_completed');
+      console.log('🔍 Prescriptions with follow_up_completed status:', completedFollowUps);
+      
       setPrescriptions(response.data.prescriptions);
       setFilteredPrescriptions(response.data.prescriptions);
       setPagination(response.data.pagination);
@@ -695,13 +704,54 @@ const AllPrescriptions: React.FC = () => {
                               )}
                             </div>
                             <div className="mt-1">
-                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                                filterType === 'followups' && prescription.nextFollowUp
-                                  ? 'bg-orange-100 text-orange-800'
-                                  : 'bg-green-100 text-green-800'
-                              }`}>
-                                {filterType === 'followups' && prescription.nextFollowUp ? 'Follow-up' : 'Active'}
-                              </span>
+                              {(() => {
+                                console.log(`Prescription ${prescription.prescriptionId} status:`, prescription.status, 'nextFollowUp:', prescription.nextFollowUp, 'updatedAt:', prescription.updatedAt);
+                                
+                                // Format date function
+                                const formatCompletedDate = (dateString: string): string => {
+                                  const date = new Date(dateString);
+                                  const day = date.getDate().toString().padStart(2, '0');
+                                  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                                                 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                  const month = months[date.getMonth()];
+                                  const year = date.getFullYear();
+                                  return `${day}-${month}-${year}`;
+                                };
+                                
+                                // Show custom labels based on status
+                                if (prescription.status === 'follow_up_completed') {
+                                  return (
+                                    <div className="flex flex-col items-center">
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 w-fit">
+                                        Review Completed
+                                      </span>
+                                      {prescription.updatedAt && (
+                                        <span className="text-xs text-gray-500 mt-1 text-center">
+                                          {formatCompletedDate(prescription.updatedAt)}
+                                        </span>
+                                      )}
+                                    </div>
+                                  );
+                                } else if (prescription.nextFollowUp) {
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                      Review Pending
+                                    </span>
+                                  );
+                                } else if (prescription.status === 'active') {
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                      Resolved
+                                    </span>
+                                  );
+                                } else {
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                      Resolved
+                                    </span>
+                                  );
+                                }
+                              })()}
                             </div>
                           </div>
 
@@ -767,7 +817,7 @@ const AllPrescriptions: React.FC = () => {
                               >
                                 Edit
                               </button>
-                              {filterType === 'followups' && prescription.nextFollowUp && (
+                              {filterType === 'followups' && prescription.nextFollowUp && prescription.status !== 'follow_up_completed' && (
                                 <button
                                   onClick={() => handleCreateFollowUp(prescription)}
                                   className="text-xs bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded transition-colors"

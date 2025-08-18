@@ -32,6 +32,8 @@ interface Prescription {
   prescription: string;
   nextFollowUp?: string;
   createdAt: string;
+  status?: string;
+  updatedAt?: string;
 }
 
 interface PrescriptionHistoryModalProps {
@@ -49,6 +51,30 @@ const PrescriptionHistoryModal: React.FC<PrescriptionHistoryModalProps> = ({
 }) => {
   const navigate = useNavigate();
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
+
+  // Format status for display
+  const getStatusDisplay = (prescription: Prescription) => {
+    if (prescription.status === 'follow_up_completed') {
+      return { label: 'Review Completed', color: 'bg-blue-100 text-blue-800' };
+    } else if (prescription.nextFollowUp) {
+      return { label: 'Review Pending', color: 'bg-orange-100 text-orange-800' };
+    } else if (prescription.status === 'active') {
+      return { label: 'Resolved', color: 'bg-green-100 text-green-800' };
+    } else {
+      return { label: 'Active', color: 'bg-gray-100 text-gray-800' };
+    }
+  };
+
+  // Format date to DD-MMM-YYYY format
+  const formatCompletedDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
 
   const handleEditPrescription = (prescriptionId: string) => {
     navigate(`/prescriptions/edit/${prescriptionId}`);
@@ -113,6 +139,13 @@ const PrescriptionHistoryModal: React.FC<PrescriptionHistoryModalProps> = ({
                             }`}>
                               {new Date(prescription.createdAt).toLocaleDateString('en-GB')}
                             </p>
+                            <div className="mt-2">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusDisplay(prescription).color}`}>
+                                {prescription.status === 'follow_up_completed' 
+                                  ? `Review Completed${prescription.updatedAt ? ` (${formatCompletedDate(prescription.updatedAt)})` : ''}`
+                                  : getStatusDisplay(prescription).label}
+                              </span>
+                            </div>
                           </div>
                           {selectedPrescription?._id === prescription._id && (
                             <div className="flex-shrink-0 ml-2">

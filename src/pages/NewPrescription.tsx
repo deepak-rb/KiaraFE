@@ -35,9 +35,10 @@ const NewPrescription: React.FC = () => {
     const followUp = searchParams.get('followUp') === 'true';
     const originalPrescriptionCode = searchParams.get('originalPrescriptionCode');
     const originalPrescriptionId = searchParams.get('originalPrescriptionId');
+    const patientObjectId = searchParams.get('patientObjectId'); // For follow-up prescriptions
     
     return {
-      patientId: selectedPatient?._id || '',
+      patientId: selectedPatient?._id || patientObjectId || '',
       symptoms: '',
       prescription: '',
       nextFollowUp: '',
@@ -170,13 +171,19 @@ const NewPrescription: React.FC = () => {
     setError('');
 
     try {
-      const prescriptionData = {
+      const prescriptionData: any = {
         patientId: values.patientId,
         symptoms: values.symptoms,
         prescription: values.prescription,
         nextFollowUp: values.nextFollowUp ? new Date(values.nextFollowUp).toISOString() : null,
         notes: values.notes
       };
+
+      // Add originalPrescriptionId if this is a follow-up prescription
+      const originalPrescriptionId = searchParams.get('originalPrescriptionId');
+      if (originalPrescriptionId) {
+        prescriptionData.originalPrescriptionId = originalPrescriptionId;
+      }
 
       const response = await api.post('/prescriptions', prescriptionData);
       
@@ -227,6 +234,7 @@ const NewPrescription: React.FC = () => {
           )}
           
           <Formik
+            key={selectedPatient?._id || 'new'} // Force re-initialization when patient changes
             initialValues={getInitialValues()}
             validationSchema={prescriptionSchema}
             onSubmit={handleSubmit}
